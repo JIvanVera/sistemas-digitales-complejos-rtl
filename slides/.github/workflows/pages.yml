@@ -1,0 +1,26 @@
+on:
+  push:
+    branches: [ main ]   # o master, según tu rama
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - run: gem install asciidoctor asciidoctor-revealjs
+      - run: |
+          mkdir -p dist/slides
+          asciidoctor-revealjs slides/*.adoc -D dist/slides
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+

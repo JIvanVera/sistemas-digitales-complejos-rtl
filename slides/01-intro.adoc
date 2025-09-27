@@ -1,0 +1,36 @@
+include::_common.adoc[]
+= Introduction
+{course_title} — {module_title}
+
+**Instructor:** {instructor} · **Institution:** {institution} · **Year:** {term}
+
+== Welcome
+
+* This is a test slide deck.
+* Built with AsciiDoc + Asciidoctor Reveal.js.
+* Deployed with GitHub Pages and exported to PDF.
+
+== Code Example
+
+[source,systemverilog]
+----
+module hello_rtl (
+  input  logic clk,
+  input  logic rst_n,
+  output logic toggled
+);
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) toggled <= 1'b0;
+    else        toggled <= ~toggled;
+  end
+endmodule
+----
+
+== Diagram Example
+
+image::../figs/build/cdc_blocks.svg[width=60%]
+
+== Thank you!
+
+Next: Reset & CDC
+
