@@ -24,22 +24,14 @@ jobs:
           mkdir -p dist/slides
           asciidoctor-revealjs slides/*.adoc -D dist/slides
 
-          # Crear un índice simple en la raíz
-          cat > dist/index.html <<'HTML'
-          <!doctype html>
-          <meta charset="utf-8">
-          <title>Sistemas Digitales Complejos - RTL</title>
-          <h1>Sistemas Digitales Complejos: Síntesis RTL</h1>
-          <p>Slides disponibles:</p>
-          <ul>
-          HTML
-
-          for f in dist/slides/*.html; do
-            bn=$(basename "$f")
-            echo "<li><a href=\"slides/$bn\">$bn</a></li>" >> dist/index.html
-          done
-
-          echo "</ul>" >> dist/index.html
+      - name: Build index
+        run: |
+          mkdir -p dist
+          if [ -f index.adoc ]; then
+            asciidoctor index.adoc -D dist
+          elif [ -f index.md ]; then
+            pandoc index.md -o dist/index.html
+          fi
 
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -1,0 +1,92 @@
+# Compiled source #
+###################
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+*.out
+*.obj
+
+# Packages #
+############
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Logs and databases #
+######################
+*.log
+*.sql
+*.sqlite
+
+# OS generated files #
+######################
+.DS_Store
+Thumbs.db
+
+# Vim swap/backup files #
+#########################
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+*~
+
+# Python #
+##########
+__pycache__/
+*.py[cod]
+
+# C/C++ #
+#########
+*.d
+*.dep
+
+# FPGA/EDA tools (common) #
+###########################
+*.bit
+*.bin
+*.mcs
+*.jou
+*.log
+*.str
+*.tcl
+*.xml
+*.xpr
+*.xsd
+*.xise
+*.wdb
+*.wcfg
+*.wlf
+*.vcd
+*.vvp
+*.pb
+*.pbtxt
+*.svf
+*.syr
+*.rpt
+*.dcp
+*.runs/
+*.sim/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.ipstatic/
+*.webtalk/
+*.vivado/
+*.Xil/
+
+# Project files #
+#################
+*.user
+*.project
+*.idea/
+*.vscode/

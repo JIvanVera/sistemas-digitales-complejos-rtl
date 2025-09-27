@@ -1,0 +1,17 @@
+= Sistemas Digitales Complejos: Síntesis RTL
+Universidad de Málaga — Módulo RTL
+:revealjsdir: https://cdn.jsdelivr.net/npm/reveal.js@5
+:source-highlighter: highlightjs
+
+== Slides
+
+* link:slides/01-intro.html[01 – Introduction]
+* link:slides/sesion1.html[Session 1 – Reset & CDC]
+* link:slides/sesion2.html[Session 2 – Asynchronous FIFO]
+* link:slides/sesion3.html[Session 3 – PDK & SRAM Macros]
+
+== About this course
+
+This repository contains lecture material for the RTL part of the course  
+**Complex Digital Systems: RTL Synthesis and HLS**, taught at Universidad de Málaga.
+
