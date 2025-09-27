@@ -1,36 +1,70 @@
 include::_common.adoc[]
+:imagesdir: ./private_imgs/01_intro
+
 = Introduction
 {course_title} — {module_title}
 
-**Instructor:** {instructor} · **Institution:** {institution} · **Year:** {term}
+== About me
 
-== Welcome
+image::profile.jpg[width=280, align=center]
 
-* This is a test slide deck.
-* Built with AsciiDoc + Asciidoctor Reveal.js.
-* Deployed with GitHub Pages and exported to PDF.
+[%step]
+* FPGA & RTL Engineer — 10+ years experience  
+* Worked in **industry & research** (Enclustra, BITEC-DSP, BSC, EnSilica)  
+* Passionate about **RTL design & Embedded Software**  
 
-== Code Example
+== Professional Experience
 
-[source,systemverilog]
-----
-module hello_rtl (
-  input  logic clk,
-  input  logic rst_n,
-  output logic toggled
-);
-  always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) toggled <= 1'b0;
-    else        toggled <= ~toggled;
-  end
-endmodule
-----
+[%step]
+* **2024–Now** → FPGA Embedded SW Engineer @ Enclustra  
+* **2022–2024** → RTL Engineer @ BITEC-DSP  
+* **2021–2022** → Leading RTL Research Engineer @ BSC  
+* **2017–2020** → FPGA Engineer @ BITEC-DSP  
+* **2013–2016** → Embedded System Engineer @ EnSilica
 
-== Diagram Example
 
-image::../figs/build/cdc_blocks.svg[width=60%]
+== Skills
 
-== Thank you!
+[%step]
+* **RTL Design** → SystemVerilog, Verilog  
+* **FPGA/ASIC** → Synthesis, CDC, Resets, FIFOs  
+* **Embedded SW** → SoCs, HW/SW integration  
+* **Leadership & Research** → team & academic projects
 
-Next: Reset & CDC
+== Module Overview
+
+[%step]
+1. **Resets & Clock Domain Crossing (CDC)**  
+   → Sync vs Async resets, CDC design patterns, demos  
+
+[%step]
+2. **Asynchronous FIFO**  
+   → Fundamentals, simulation & synthesis, real examples  
+
+[%step]
+3. **PDK & Memory Macros**  
+   → From generic RAM to PDK macros (*pulp-platform/croc*)
+
+
+== Teaching Approach
+
+[%step]
+* **Practical-first**: theory → real code  
+* Live demos: terminal + EDA Playground  
+* Students encouraged to **ask & try**
+
+
+== Goals
+
+By the end of this module you will:
+
+== Goals
+
+By the end of this module you will:
+
+[%step]
+* Recognize the importance of **resets** and **CDC** in reliable RTL design  
+* Understand the **basic principles** of asynchronous FIFOs  
+* Be aware of how **technology-specific memories** are integrated in practice  
+* Gain the ability to **identify CDC/Reset/Memory issues** and know how to find the right techniques to solve them
 

@@ -1,0 +1,23 @@
+/* Fondo general */
+.reveal {
+  background-color: #ffffff;  /* blanco */
+  color: #333333;             /* gris oscuro para texto */
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+/* Logo UMA fijo arriba a la izquierda */
+.reveal::before {
+  content: "";
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  width: 550px;   /* más ancho */
+  height: 200px;  /* más alto */
+  background-image: url("./private_imgs/UMA_logo.png");
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: left top;
+  z-index: 1000;
+  opacity: 0.95;
+  pointer-events: none;
+}

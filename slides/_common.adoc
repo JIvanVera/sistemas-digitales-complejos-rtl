@@ -1,14 +1,20 @@
-// ==== Metadadata ====
+// ==== Metadata ====
 :course_title: SISTEMAS DIGITALES COMPLEJOS: SÍNTESIS RTL Y HLS
 :module_title: Módulo — Síntesis RTL: Resets, CDC, FIFOs y PDKs
 :instructor: Ivan Vera
 :institution: Universidad de Málaga
 :term: 2025
+
 :revealjs_theme: simple
 :revealjsdir: https://cdn.jsdelivr.net/npm/reveal.js@5
 :revealjs_slideNumber: true
 :revealjs_transition: slide
 :imagesdir: ../figs
-:source-highlighter: highlightjs
-:highlightjs-theme: github
 
+:source-highlighter: highlightjs
+:highlightjs-theme: https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.3/styles/github.min.css
+
+:customcss: custom.css
+
+:icons: font
+:sectanchors:

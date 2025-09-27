@@ -90,3 +90,9 @@ __pycache__/
 *.project
 *.idea/
 *.vscode/
+
+# Ignore personal images
+slides/private_imgs/
+
+# Build output
+dist/
