@@ -18,9 +18,29 @@ jobs:
         with:
           ruby-version: '3.2'
       - run: gem install asciidoctor asciidoctor-revealjs
-      - run: |
+
+      - name: Build slides
+        run: |
           mkdir -p dist/slides
           asciidoctor-revealjs slides/*.adoc -D dist/slides
+
+          # Crear un índice simple en la raíz
+          cat > dist/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>Sistemas Digitales Complejos - RTL</title>
+          <h1>Sistemas Digitales Complejos: Síntesis RTL</h1>
+          <p>Slides disponibles:</p>
+          <ul>
+          HTML
+
+          for f in dist/slides/*.html; do
+            bn=$(basename "$f")
+            echo "<li><a href=\"slides/$bn\">$bn</a></li>" >> dist/index.html
+          done
+
+          echo "</ul>" >> dist/index.html
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
