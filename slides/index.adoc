@@ -1,7 +1,10 @@
-= Sistemas Digitales Complejos: Síntesis RTL
+= Complex Digital Systems: RTL Synthesis
 Universidad de Málaga — Módulo RTL
-:revealjsdir: https://cdn.jsdelivr.net/npm/reveal.js@5
-:source-highlighter: highlightjs
+:icons: font
+:sectanchors:
+
+Welcome! This page indexes all the slides for the **RTL Synthesis** module  
+of the course *Complex Digital Systems: RTL and HLS*.
 
 == Slides
 
@@ -10,8 +13,7 @@ Universidad de Málaga — Módulo RTL
 * link:slides/sesion2.html[Session 2 – Asynchronous FIFO]
 * link:slides/sesion3.html[Session 3 – PDK & SRAM Macros]
 
-== About this course
+== About
 
-This repository contains lecture material for the RTL part of the course  
-**Complex Digital Systems: RTL Synthesis and HLS**, taught at Universidad de Málaga.
-
+This repository hosts teaching material (slides and examples)  
+for the RTL part of the course at **Universidad de Málaga**.
