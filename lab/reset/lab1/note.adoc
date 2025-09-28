@@ -1,11 +1,12 @@
-Lab 1 — Synchronous reset & pulse stretcher
+# Lab 1 — Synchronous reset & pulse stretcher
 
-Goal: Show that a short reset pulse can be missed with synchronous reset if it doesn’t align with a clock edge, and how a stretcher fixes it by holding reset for N cycles.
+* Goal: Complete the rst_pulse_stretcher
+* Goal: Show that a short reset pulse can be missed with synchronous reset if it doesn’t align with a clock edge, and how a stretcher fixes it by holding reset for N cycles.
 
-Observe in EPWave
+## Observe in EPWave
 
-rst_n_glitch: 4 ns low between clock edges → direct counter does not reset.
+* rst_n_glitch: 4 ns low between clock edges → direct counter does not reset.
 
-rst_n_stretched: stretcher holds reset 3 cycles → stretched counter does reset.
+* rst_n_stretched: stretcher holds reset 3 cycles → stretched counter does reset.
 
-Compare q_direct vs q_str.
+* Compare q_direct vs q_str.
