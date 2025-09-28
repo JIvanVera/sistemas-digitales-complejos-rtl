@@ -1,0 +1,15 @@
+= Lab 2 — Asynchronous reset: deassertion hazard
+
+Goal: Show the risk of deasserting an async reset near a clock edge:
+same reset with two path delays → counters exit reset in different cycles.
+Also triggers $recovery/$removal warnings (window = 1 ns).
+
+== Observe in EPWave
+
+* rst_n_ext goes high at 49.5 ns, clk edge at 50 ns.
+
+* rst_n_a (0 ns delay) deasserts 0.5 ns before clk → violates recovery.
+
+* rst_n_b (1 ns delayed) deasserts at 50.5 ns → exits reset one cycle later.
+
+* Compare q_a vs q_b

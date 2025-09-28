@@ -1,0 +1,13 @@
+= Lab 3 — 2-FF reset synchronizer: async assert, sync release
+
+Goal: Fix async deassertion with a 2-FF synchronizer.
+Both counters exit reset aligned to the clock, 2 cycles after external release.
+
+== Observe in EPWave
+
+* ext_rst_n deasserts at 49.5 ns (like Lab 2).
+
+* mrst_n (synchronizer output) goes high after 2 clock edges.
+
+* Both q0/q1 start in sync.
+

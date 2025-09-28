@@ -1,0 +1,16 @@
+= Lab 4 — Multi-clock: per-domain synchronizers vs sequenced release
+
+== Goal:
+
+* Independent: one synchronizer per clock domain → each exits when ready.
+
+* Sequenced: domain B waits for domain A to be out of reset.
+
+== Observe in EPWave
+
+* Independent: mrstA_n and mrstB_n rise at different times (clock-dependent).
+
+* Sequenced: mrstB_n won’t rise until mrstA_n is high (then 2 clkB edges).
+
+
+| Run two separate testbenches below.
