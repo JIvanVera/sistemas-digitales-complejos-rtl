@@ -16,8 +16,7 @@ slides: $(SLIDES_HTML)
 
 $(DIST_DIR)/slides/%.html: $(SLIDES_DIR)/%.adoc
 	mkdir -p $(DIST_DIR)/slides
-	$(ASCIIDOCTOR_REVEALJS) -a revealjs_customcss=custom.css $< -D $(DIST_DIR)/slides
-
+	$(ASCIIDOCTOR_REVEALJS) -r asciidoctor-kroki $< -D $(DIST_DIR)/slides
 
 # Generar índice (opcional)
 index: index.adoc

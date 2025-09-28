@@ -21,3 +21,30 @@
   opacity: 0.95;
   pointer-events: none;
 }
+
+.reveal pre code {
+  max-height: none !important;
+  font-size: 0.8em; /* ajusta tamaño si quieres */
+}
+
+/* Títulos de segundo nivel (==) */
+.reveal h2 {
+  font-size: 1.2em !important;  /* default suele ser ~2.5em */
+  color: #002B5B !important;
+  font-weight: bold;
+  margin-top: -100px !important; /* súbelo, ajusta el valor según quieras */
+}
+
+/* Texto normal */
+.reveal section p,
+.reveal section li {
+  font-size: 0.9em !important; /* más pequeño */
+}
+
+/* Rol opcional para textos más compactos */
+.reveal .small-text {
+  font-size: 0.8em !important;
+}
+.reveal .small-title {
+  font-size: 1.2em !important;
+}

@@ -18,3 +18,5 @@
 
 :icons: font
 :sectanchors:
+
+:kroki-server-url: https://kroki.io
