@@ -1,0 +1,4 @@
+= Lab 1 — Implementing a 2FF synchronizer
+* Goal: practice writing synthesizable SystemVerilog code for a 2-FF synchronizer 
+* Tool: **EDAPlayground** (SystemVerilog + Questa/Verilator)  
+* Concept: write a module that implements a 2-FF synchronizer

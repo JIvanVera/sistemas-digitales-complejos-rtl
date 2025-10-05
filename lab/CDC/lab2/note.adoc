@@ -1,0 +1,4 @@
+= Lab 2 — Pulse Generator for MCP Synchronized Enable
+* Goal: implement the **pulse generator** used in the MCP synchronized enable method  
+* Tool: **EDAPlayground** (SystemVerilog + Questa/Verilator)  
+* Concept: detect a **toggle** on an input and generate a **1-cycle synchronized pulse**

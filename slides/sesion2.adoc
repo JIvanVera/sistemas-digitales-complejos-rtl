@@ -1,0 +1,755 @@
+include::_common.adoc[]
+:imagesdir: ./private_imgs/sesion2
+
+== CDC — Introduction
+
+[.text-center]
+*Clock Domain Crossing*
+
+* Data crossing between two asynchronous clocks
+* CDC appears in **almost every** modern SoC (multiple clocks, gating, PLLs)
+* The key issue is **when** the data is sampled
+* **Metastability** cannot be avoided; it can be **contained and mitigated**
+* Goal of this section: understand the phenomenon and lay the groundwork for **safe CDC design**
+
+[.notes]
+--
+Introducción a CDC. El CDC es el fenómeno que ocurre cuando los datos cruzan entre dominios de reloj asíncronos. Aparece en casi todos los SoCs modernos debido a la presencia de múltiples relojes, técnicas de gating y PLLs. El problema clave es cuándo se muestrea el dato. La metaestabilidad no se puede evitar, pero sí contener y mitigar. El objetivo de esta sección es entender el fenómeno y sentar las bases para un diseño seguro de CDC.
+--
+
+== Metastability — What it is?
+
+image::metastability.png[width=500,align=center]
+
+[%step]
+* A flip-flop can enter a **neither-0-nor-1** state for some time when sampling **too close** to a clock edge  
+* This happens when **event ordering** (data vs. clock) is ambiguous  
+* If the FF output hasn’t **resolved** before it is used → **synchronization failure**  
+* In multi-clock systems, metastability is **inevitable**; the goal is to make failures **vanishingly rare**
+
+[.notes]
+--
+La metaestabilidad es un estado intermedio entre 0 y 1 que puede durar un tiempo indefinido cuando un flip-flop muestrea un dato muy cerca del flanco de reloj. Ocurre cuando el orden de los eventos (dato vs. reloj) es ambiguo. Si la salida del FF no se ha resuelto antes de ser usada, se produce una falla de sincronización. En sistemas con múltiples relojes, la metaestabilidad es inevitable; el objetivo es hacer que las fallas sean extremadamente raras.
+--
+
+=== Metastability — What it is?
+
+image::metastability.png[width=500,align=center]
+
+[plantuml, metaestabilidad_corta, svg, width=95%]
+....
+@startuml
+skinparam BackgroundColor transparent
+skinparam DefaultFontSize 28
+skinparam StrokeThickness 3
+scale 1400x480
+
+clock "clkA" as A with period 10 offset 0
+concise "dataA" as D
+clock "clkB" as B with period 13 offset 3
+concise "FF1" as F1
+concise "FF2" as F2
+
+@0
+D is low
+F1 is low
+F2 is low
+@15.3
+D is high
+@16
+F1 is "META" #FFEBEE;line:red
+@18.5
+F1 is high
+@29
+F2 is high
+@enduml
+....
+
+=== Why is metastability a problem?
+
+image::metastability_2.png[width=700,align=center]
+
+[%step]
+* A **metastable output** can wiggle or resolve late and **contaminate** downstream combinational logic  
+* Different paths may “see” **different values** of the same node within the **same** time window  
+* Result: **illegal values**, incoherent flags, FSMs in unreachable states
+
+[%step]
+* Every FF specifies **setup/hold**: windows during which the data must **not** change around the edge  
+* Across CDC, that guarantee **does not exist** between domains → risk of **metastability** if sampling in the forbidden window
+
+[.notes]
+--
+Por que la metastabilidad es un problema? Porque la senal metaestable puede contaminar la logica combinacional aguas abajo. Si tienes varias rutas que dependen de esa senal, pueden ver valores diferentes en la misma ventana de tiempo (una ve 0, otra ve 1). Resultado: valores ilegales, flags incoherentes, FSMs en estados inalcanzables... En resumen, comportamientos raros y bugs dificiles de reproducir.
+Cada flip-flop especifica tiempos de setup y hold, ventanas durante las cuales el dato no debe cambiar alrededor del flanco. En el cruce de dominios de reloj, esa garantia no existe entre dominios, lo que genera el riesgo de metastabilidad si se muestrea en la ventana prohibida.
+--
+
+== Synchronizers
+
+[%step]
+* When crossing clock domains, first ask: **do we need to capture every transition?**
+
+[%step]
+* **Scenario 1 — Missing samples allowed**
+  - You may **skip** intermediate values; sampled values must be **accurate**
+  - Example: **Gray-coded pointers** in an asynchronous FIFO (must read legal values to detect *full/empty*)
+
+[%step]
+* **Scenario 2 — No event loss allowed**
+  - Every change must be **observed** (often also **acknowledged**) before the source can change again
+  - Examples: control pulses, interrupts, start/commit events
+
+[%step]
+* In **both** scenarios, signals must be **synchronized** into the receiving domain
+
+[.notes]
+--
+Cuando se cruzan dominios de reloj, la primera pregunta es: ¿necesitamos capturar cada transición? Pues aqui tenemos dos escenarios. 
+Si la respuesta es no, podemos permitirnos perder muestras intermedias, siempre y cuando las muestras que tomemos sean correctas. Un ejemplo son los punteros codificados en Gray en una FIFO asincrónica, donde es importante leer valores legales para detectar si la FIFO está llena o vacía.
+Si la respuesta es sí, no se puede perder ningún evento. Cada cambio debe ser observado (y a menudo también reconocido) antes de que la fuente pueda cambiar de nuevo. Ejemplos son pulsos de control, interrupciones, eventos de inicio/commit.
+En ambos escenarios, las señales deben ser sincronizadas en el dominio receptor
+--
+
+=== What is a Synchronizer?
+
+"A synchronizer is a device that samples an asynchronous signal and outputs a version
+of the signal that has transitions synchronized to a local or sample clock."
+
+[.notes]
+--
+Un sincronizador es un dispositivo que muestrea una señal asincrónica y produce una versión de la señal cuyas transiciones están sincronizadas con un reloj local o de muestreo.
+--
+
+=== Two-Flip-Flop Synchronizer
+image::sync_2FF.png[width=700,align=center]
+
+[%step]
+* The simplest and most common synchronizer used by digital designers is a two-flip-flop synchronizer
+* A **synchronizer** samples an asynchronous signal and outputs a version **aligned** to the local clock
+* **Stage-1 FF** samples the async input; allow one full clock for any metastability to **decay**
+* **Stage-2 FF** re-samples Stage-1; output is now **stable** and safe to distribute in the new domain
+* Residual risk exists (Stage-1 may still be meta at sample time), but probability drops **exponentially**
+* **MTBF** depends on clock/data rates and device parameters; **two FFs** are sufficient in most designs
+
+* 🧪 Lab 1 — Implementing a 2FF synchronizer
+[%step]
+* Goal: practice writing synthesizable SystemVerilog code for a 2-FF synchronizer 
+* Tool: **EDAPlayground** (SystemVerilog + Questa/Verilator)  
+* Concept: write a module that implements a 2-FF synchronizer
+
+[.notes]
+--
+El sincronizador de dos flip-flops es el más simple y comúnmente usado por los diseñadores digitales. 
+Un sincronizador muestrea una señal asincrónica y produce una versión alineada con el reloj local. 
+El primer flip-flop muestrea la entrada asincrónica; se permite un ciclo completo de reloj para que cualquier metaestabilidad decaiga. 
+El segundo flip-flop vuelve a muestrear la salida del primero; ahora la salida es estable y segura para distribuir en el nuevo dominio. 
+Existe un riesgo residual (el primer FF puede seguir siendo metaestable en el momento de muestreo), pero la probabilidad disminuye exponencialmente. 
+El MTBF (el tiempo medio hasta que se produce fallo) depende de las tasas de reloj/dato y de los parámetros del dispositivo; dos FFs son suficientes en la mayoría de los diseños.
+--
+
+=== MTBF — Mean Time Between Failures
+
+[stem]
+++++
+\mathrm{MTBF} = \frac{1}{f_{\mathrm{clk}}\, f_{\mathrm{data}}\, x}
+++++
+
+[%step]
+* **Definition:** expected time until a synchronization failure in a CDC path  
+* **Bigger is better:** larger MTBF ⇒ failures are **rarer**; target ≫ system lifetime
+* **The two of the most important factors that directly impact the MTBF are:**
+  - the **sample clock frequency** (how fast are signals being sampled into the receiving clock domain)
+  - the **data change frequency** (how fast is the data changing that crosses the CDC boundary)
+* From the above partial equation, it can be seen that failures occur more frequently in higher speed designs, or when the sampled data changes more frequently.
+
+[.notes]
+--
+MTBF es el tiempo medio hasta que un CDC falla pese al sincronizador. 
+Cuanto mayor sea el MTBF, más raras serán las fallas; el objetivo es que sea mucho mayor que la vida útil del sistema.
+Dos de los factores más importantes que afectan directamente al MTBF son la frecuencia de muestreo (qué tan rápido se muestrean las señales en el dominio receptor) y la frecuencia de cambio de datos (qué tan rápido cambia el dato que cruza el límite CDC).
+De la ecuación parcial anterior, se puede ver que las fallas ocurren con más frecuencia en diseños de mayor velocidad, o cuando el dato muestreado cambia con más frecuencia.
+--
+
+=== Three flip-flop synchronizer
+
+image::sync_3FF.png[width=700,align=center]
+
+* For some very high speed designs, the MTBF of a two-flop synchronizer is too short and a third
+flop is added to increase the MTBF to a satisfactory duration of time.
+
+[.notes]
+-- 
+Para algunos diseños de muy alta velocidad, el MTBF de un sincronizador de dos flip-flops es demasiado corto y se añade un tercer flip-flop para aumentar el MTBF a una duración de tiempo satisfactoria.    
+--
+
+== Synchronizing signals from the sending clock domain
+image::logic_2_sync.png[width=900,align=center]
+
+[%step]
+* **FAQ:** “Do I need to register signals in the *sending* domain?
+
+[.notes]
+--
+¿Es necesario registrar las señales en el dominio de envío?
+--
+
+=== Synchronizing signals from the sending clock domain
+image::logic_2_sync_waves.png[width=1000,align=center]
+
+=== Synchronizing signals from the sending clock domain
+
+* **FAQ:** “Do I need to register signals in the *sending* domain?” → **Yes, generally**
+* Wrong rationale: “Receiver will synchronize it, so source doesn’t matter” → **Incorrect**
+* **Unregistered combinational** outputs can **glitch/settle** at the CDC boundary
+* This **increases effective toggle rate** (bursts of edges) → higher chance to sample while changing
+* Result: **more metastability risk** in the receiving domain
+* Rule of thumb: **register in the source domain** → then synchronize in the destination domain
+
+[.notes]
+--
+¿Es necesario registrar las señales en el dominio de envío? Generalmente, sí.
+Razonamiento incorrecto: "El receptor lo sincronizará, así que la fuente no importa" → Incorrecto.
+Las salidas combinacionales no registradas pueden hacer glitch o asentarse en el límite CDC. Esto aumenta la tasa efectiva de conmutación (ráfagas de flancos) → mayor probabilidad de muestrear mientras cambia. Resultado: más riesgo de metastabilidad en el dominio receptor.
+Regla general: registrar en el dominio de origen → luego sincronizar en el dominio de destino   
+--
+
+=== Synchronizing into the Receiving Clock Domain
+
+[%step]
+* **Register in the source domain** before the CDC boundary
+* This removes **combinational settling/glitches** at the boundary
+* Fewer effective edges → lower **data-change frequency** seen by the receiver
+* Lower f_data → **higher MTBF** (longer time between failures)
+* Then use a **2-FF synchronizer** in the receiving domain
+
+[.notes]
+--
+Registrar en el dominio de origen antes del límite CDC. Esto elimina los glitches/asentamientos combinacionales en el límite. Menos flancos efectivos → menor frecuencia de cambio de datos vista por el receptor. Menor f_data → mayor MTBF (más tiempo entre fallos). Luego usar un sincronizador de 2 FFs en el dominio receptor.
+--
+
+=== Synchronizing into the Receiving Clock Domain
+image::logic_synced.png[width=1000,align=center]
+
+
+
+== Synchronizing Signals
+[.text-center]
+if a CDC signal cannot be skipped, it is important to consider signal widths or synchronization techniques when they are
+passed between clock domains.
+
+[.notes]
+--
+Si una señal CDC no puede ser omitida, es importante considerar los anchos de señal o las técnicas de sincronización cuando se pasan entre dominios de reloj.
+--
+
+=== Synchronizing Fast → Slow Clock Domains
+
+[%step]
+* A fast-domain pulse may change **twice** between slow-domain sampling edges
+* Or might be too close to the sampling edge → **metastability risk**
+* Missed events are or are not allowed?
+
+[.notes]
+--
+Un evento del dominio rápido puede cambiar dos veces entre los flancos de muestreo del dominio lento. O puede estar demasiado cerca del flanco de muestreo, lo que genera riesgo de metastabilidad.
+Otra pregunta importante: ¿Se permiten eventos perdidos o no?
+--
+
+=== Synchronizing Fast → Slow Clock Domains
+
+ * When missed samples are not allowed, there are two general approaches to the problem:
+   1) **Open-loop** approaches (no acknowledgment)
+   2) **Closed-loop** approaches (with acknowledgment)
+
+
+[.notes]
+--
+Cuando no se permiten muestras perdidas, hay dos enfoques generales para el problema:
+1) Enfoques de bucle abierto (sin reconocimiento)
+2) Enfoques de bucle cerrado (con reconocimiento)
+--
+
+=== Requirement for reliable signal passing between clock domains
+
+* Synchronizing **slower control signals** into a **faster clock domain**
+  - Generally not a problem if the faster clock domain is 1.5X the frequency (or more)
+* When using a two-flip-flop synchronizer, the CDC signal must be held high for at least 1.5 times the receiving clock period.
+* The "three edge" requirement:
+    - **Input data values must be stable for three destination clock edges**
+
+[.notes]
+--
+Sincronizar señales de control más lentas en un dominio de reloj más rápido generalmente no es un problema si el dominio de reloj más rápido es 1.5 veces la frecuencia (o más).
+Cuando se usa un sincronizador de dos flip-flops, la señal CDC debe mantenerse alta durante al menos 1.5 veces el período del reloj receptor.
+El requisito de "tres flancos": 
+Los valores de los datos de entrada deben ser estables durante tres flancos del reloj de destino.
+--
+
+=== Problem - passing a fast CDC pulse to a slow clock domain
+image::fast_to_slow_pulse_problem.png[width=1000,align=center]
+[%step]
+* A 1-cycle pulse in a **fast** domain can be **completely missed** by a **slower** domain*
+* If the pulse rises and falls **between two slow edges**, the slow domain **never samples ‘1’**
+* A plain **2-FF synchronizer** won’t help if the slow domain **never sees the level**
+* This is a **lost event** problem, not (just) metastability
+
+[.notes]
+--
+Un pulso de 1 ciclo en un dominio rápido puede ser completamente perdido por un dominio más lento. Si el pulso  es entre dos flancos, el dominio lento nunca muestrea '1'. Un simple sincronizador de 2 FFs no ayudará si el dominio lento nunca ve el nivel. Este es un problema de eventos perdidos, no (solo) de metastabilidad.
+--
+
+=== Problem — “Long” CDC pulse… but not long enough!
+image::fast_to_slow_pulse_problem_2.png[width=1000,align=center]
+
+[%step]
+* *A pulse slightly wider than **Tslow** can still be **missed** by the slow domain*
+* Phase-dependent corner case: pulse changes **too close** to two consecutive slow edges
+* Violates **setup** on the first edge and **hold** on the next → no stable ‘1’ sampled
+* 2-FF sync + edge detect may see **0 → X → 0** → **no pulse** reconstructed
+* Rare in sim, **real** in silicon (intermittent failures)
+
+[.notes]
+--
+Un pulso ligeramente más ancho que Tslow aún puede ser perdido por el dominio lento.
+Caso límite dependiente de la fase: el pulso cambia demasiado cerca de dos flancos lentos consecutivos. Viola el setup en el primer flanco y el hold en el siguiente → no se muestrea un '1' estable. Un sincronizador de 2 FFs + detección de flancos puede ver 0 → X → 0 → no se reconstruye el pulso. Raro en simulación, pero real en silicio (fallas intermitentes).
+--  
+
+== Open-Loop CDC — Stretch & Synchronize
+
+[%step]
+* Assert the CDC **pulse long enough** so the slow domain is guaranteed to sample it
+* Practical rule: pulse width ≥ **1.5× T_dst** (better: span **≥ 3 dst edges**)
+* Use a **2-FF synchronizer** in the destination; edge-detect there to recreate a 1-cycle pulse
+* Valid only when **clock ratios/phases are fixed** and worst-case analyzed
+
+[.notes]
+--
+Idea principal: Si no hay “ack”, asegura que el pulso dure lo suficiente para que el dominio lento lo muestree al menos una vez. Regla práctica: ≥1.5×T_dst, más robusto si cubre 3 flancos del reloj destino. Siempre sincroniza con 2 FFs y detecta flanco en el destino. Solo vale cuando las frecuencias son fijas o controladas y ya analizaste el peor caso.
+--
+
+== Open-Loop CDC — Stretch & Synchronize
+image::open_loop.png[width=1000,align=center]
+
+=== Pros / Cons (Open-Loop)
+
+* ✅ **Fastest** CDC for single events (no handshake latency)
+* ⚠️ **Brittle** if clocks/ratios/latencies change later
+* ⚠️ Easy to misuse as a “general solution” — guard with **assertions**
+  - Adding a SVA to the model to detect if the "three edges" requirement is met
+
+[source,systemverilog]
+----
+property p_openloop_three_edges;
+  @(posedge clk_dst) disable iff (!rstn_dst)
+    $rose(sig_dst_sync) |-> sig_dst_sync[*2];
+endproperty
+assert property (p_openloop_three_edges)
+  else $error("Open-loop CDC: pulse too short for destination clock");
+----
+
+[.notes]
+--
+Pros y contras del enfoque de bucle abierto:
+Pros: Es el CDC más rápido para eventos únicos (sin latencia de handshake).
+Contras: Frágil si cambian los relojes/ratios/latencias más tarde. Fácil de mal utilizar como una "solución general": proteger con **aserciones**.
+  - Añadir un SVA al modelo para detectar si se cumple el requisito de "tres flancos". 
+--
+
+=== Closed-Loop CDC — Handshake / Acknowledge
+
+[%step]
+* Send a **request (req)** from source domain → **synchronize** into destination
+* Then pass the synchronized signal back to source through another synchronizer.
+    - This is the ACK (acknowledge)
+
+[.notes]
+-- 
+La idea central es que evitamos perder eventos mandando un “req” que no se suelta hasta recibir “ack” del dominio destino. Sin supuestos de ratio/phase: si hay reloj, eventualmente se ve. El destino produce un pulso local de 1 ciclo para su lógica y devuelve un “ack” (seguirá el nivel de req o un pulso latcheado). El ack vuelve sincronizado al origen y entonces el origen baja req.
+--
+
+=== Closed-Loop CDC — Handshake / Acknowledge
+image::close_loop.png[width=1000,align=center]
+
+
+=== Pros / Cons (Closed-Loop)
+
+[%step]
+* ✅ Very **safe**: no missed events; robust vs. clock frequency/phase changes
+* ⚠️ Extra **latency**: two synchronizers (A→B and B→A) → ~4–6 cycles total
+* ⚠️ Slightly more **logic** and control (busy/flow-control) than open-loop
+
+[.notes]
+--
+Pros: Muy seguro: no hay eventos perdidos; robusto frente a cambios de frecuencia/fase de reloj.
+Contras: Extra latencia: dos sincronizadores (A→B y B→A) → ~4–6 ciclos en total. Un poco más de lógica y control (busy/flow-control) que el enfoque de bucle abierto.
+--
+
+
+== Passing Multiple Signals Between Clock Domains
+
+[%step]
+* Simple synchronizers do **not** guarantee safe delivery of **multi-bit** data across clock domains.
+* A common mistake is sending several CDC bits for the same transaction without making sure those bits are sampled together at the same time.
+* Multiple signals synchronized to one clock can have **small skews** and may be sampled on **different rising edges** in the destination clock domain.
+* Even with perfectly matched trace lengths, **rise/fall-time differences** and **process variations** can introduce enough skew to cause **sampling failures**.
+* Therefore, **multi-bit CDC strategies** must be used to avoid **skewed sampling** of the multi-bit value.
+
+[.notes]
+--
+Los sincronizadores simples no garantizan la entrega segura de datos de varios bits a través de dominios de reloj. Un error común es enviar varios bits CDC para la misma transacción sin asegurarse de que esos bits se muestreen juntos al mismo tiempo. Múltiples señales sincronizadas a un reloj pueden tener pequeños desfases y pueden ser muestreadas en diferentes flancos ascendentes en el dominio de reloj de destino. Incluso con longitudes de traza perfectamente igualadas, las diferencias de tiempo de subida/bajada y las variaciones del proceso pueden introducir suficiente desfase para causar fallos de muestreo. Por lo tanto, se deben usar estrategias CDC de varios bits para evitar el muestreo desfasado del valor de varios bits.
+--
+
+=== Multi-bit CDC Strategies — Overview
+
+[%step]
+* To avoid **skewed sampling** on multi-bit CDC, use one of three approaches:
+
+[%step]
+1) **Multi-bit signal consolidation**  
+   *Where possible, consolidate multiple CDC bits into **1-bit** CDC signals.*
+
+[%step]
+2) **Multi-cycle path formulations**  
+   *Use a **synchronized load** signal to safely pass multiple CDC bits.*
+
+[%step]
+3) **Gray-code based transfer**  
+   *Pass multiple CDC bits using **gray codes**.*
+
+[.notes]
+--
+Para evitar el muestreo desfasado en CDC de varios bits, use uno de estos tres enfoques:
+1) Consolidación de señales de varios bits: cuando sea posible, consolide múltiples bits CDC en señales CDC de 1 bit.
+2) Formulaciones de ruta de múltiples ciclos: use una señal de carga sincronizada para pasar de forma segura múltiples bits CDC.
+3) Transferencia basada en código Gray: pase múltiples bits CDC usando códigos Gray.
+--
+
+== Multi-bit Signal Consolidation
+
+[%step]
+* When possible, **consolidate multiple CDC signals** into a **single-bit** CDC signal  
+* Ask: “Do I really need **multiple bits** to control logic across a CDC boundary?”
+
+[%step]
+* Simply adding **synchronizers on every bit** is **not enough**  
+* If **ordering** or **alignment** matters → risk of misaligned sampling  
+
+[%step]
+* Goal: reduce complexity and ensure **coherent control** on the receiving side  
+* This technique often avoids **skew and metastability** propagation between bits
+
+[.notes]
+--
+Cuando sea posible, consolide múltiples señales CDC en una sola señal CDC de 1 bit. Pregúntese: "¿Realmente necesito múltiples bits para controlar la lógica a través de un límite CDC?"
+Simplemente añadir sincronizadores en cada bit no es suficiente. Si el orden o la alineación importa → riesgo de muestreo desalineado.
+El objetivo es reducir la complejidad y asegurar un control coherente en el lado receptor.  Esta técnica a menudo evita la propagación de desfases y metaestabilidad entre bits.
+--
+
+=== Problem — Two Simultaneously Required Control Signals
+image::prb1_passing_multi.png[width=1000,align=center]
+
+=== Problem — Two Simultaneously Required Control Signals
+* Example scenario:  
+  - A register in the receiving clock domain requires **two control signals** — *load* and *enable* — to store data  
+  - Both signals are asserted in the **same sending clock edge**
+
+* Problem: even a **tiny skew** between *load* and *enable* can cause  
+  - Each signal to be **synchronized on different cycles** in the receiving clock domain  
+  - The data **not being loaded** as intended
+
+* Root cause:  
+  - **Independent synchronization** of correlated control signals  
+  - Lack of **guaranteed phase alignment** across the CDC boundary
+
+[.notes]
+--
+Escenario de ejemplo: Un registro en el dominio de reloj receptor requiere dos señales de control: load y enable, para almacenar datos. Ambas señales se activan en el mismo flanco del reloj de envío.
+Problema: incluso un pequeño desfase entre load y enable puede causar que cada señal se sincronice en ciclos diferentes en el dominio de reloj receptor, y los datos no se carguen como se pretendía.
+Causa raíz: sincronización independiente de señales de control correlacionadas y falta de alineación de fase garantizada a través del límite CDC.
+--
+
+=== Solution: Multi-bit Signal Consolidation
+
+* The fix is **simple but effective**:  
+  → **Consolidate** multiple correlated control signals into a **single CDC signal**
+
+* Example:  
+  - Replace separate *load* and *enable* signals with **one combined** *load_enable* control  
+  - This unified signal drives both control inputs in the **receiving clock domain**
+
+* Benefit:  
+  - Eliminates the possibility of **time-shifted arrivals** between signals  
+  - Ensures **atomic behavior** — both actions occur together and in the correct cycle
+
+[.notes]
+--
+La solución es simple pero efectiva: consolide múltiples señales de control correlacionadas en una sola señal CDC.
+Ejemplo: Reemplace las señales load y enable separadas por una sola señal combinada load_enable. Esta señal unificada controla ambas entradas de control en el dominio de reloj receptor.
+Beneficio: Elimina la posibilidad de llegadas desfasadas entre señales. Asegura un comportamiento atómico: ambas acciones ocurren juntas y en el ciclo correcto.
+--  
+
+=== Solution: Multi-bit Signal Consolidation
+image::consolidation.png[width=1000,align=center]
+
+=== Problem — Two Phase-Shifted Sequencing Control Signals
+
+[%step]
+* In this scenario, two enable signals (**aen1**, **aen2**) are sent **sequentially** from one clock domain to another  
+* Each signal controls **pipelined data registers** in the receiving domain  
+* The issue:  
+  - **aen1** may **deassert** slightly before **aen2** is asserted  
+  - If the receiving clock edge occurs during this **small gap**, one register’s enable input may be **inactive** for one cycle  
+* Consequence:  
+  - A **one-cycle hole** appears in the enable chain  
+  - The **a2** data value may be **missed** by the second register  
+
+[.notes]
+--
+En este escenario, dos señales de habilitación (aen1, aen2) se envían secuencialmente de un dominio de reloj a otro. Cada señal de control llega en pipelining. El problema: aen1 puede desactivarse ligeramente antes de que se active aen2. Si el flanco del reloj receptor ocurre durante este pequeño intervalo, la entrada de habilitación de uno de los registros puede estar inactiva durante un ciclo. Consecuencia: aparece un hueco de un ciclo en la cadena de habilitación y el valor de datos a2 puede perderse por el segundo registro.
+--
+
+=== Problem — Two Phase-Shifted Sequencing Control Signals
+image::passing_sequence.png[width=1000,align=center]
+
+
+=== Solution: Consolidation and an extra flip-flop
+
+* The solution to this problem, is to send only one control signal into the receiving clock domain and generate the second phase-shifted pipelined enable signal within the receiving clock domain.
+
+image::passing_sequence_solution.png[width=1000,align=center]
+
+
+== Multiple CDC Signals: problem
+
+[%step]
+* Two **encoded control signals** are transferred across different clock domains  
+* Each signal represents part of a **combined code** that must be interpreted together in the receiving domain  
+
+* The issue:  
+  - Even a **small skew** between the two signals at the sampling moment can cause the receiver to capture a **mismatched combination**  
+  - This produces a **temporary illegal or incorrect code** for **one clock cycle**  
+
+* Consequence:  
+  - The receiving logic may **decode** an invalid state  
+  - Can trigger **incorrect operations** or **spurious control actions**
+
+[.notes]
+--
+Este es un clásico problema de **multi-bit CDC**: cuando varias líneas cruzan a la vez, nunca llegan perfectamente alineadas.  
+Si los bits representan un código (por ejemplo, “01”, “10”), una pequeña diferencia de tiempo puede hacer que el dominio receptor vea “00” o “11” por un ciclo.  
+Eso puede activar señales de control erróneas o estados transitorios ilegales.  
+Punto clave: cada bit se sincroniza de forma independiente, pero el **conjunto** puede quedar inconsistente durante un ciclo.
+--
+
+== Multiple CDC Signals: problem
+image::enc_ctrl_signal.png[width=1000,align=center]
+
+=== Solutions for Passing Multiple CDC Signals
+
+[%step]
+* To address **multi-bit CDC issues**, designers can use:  
+  - **Multi-Cycle Path (MCP)** formulations  
+  - **FIFO-based** synchronization techniques  
+
+[%step]
+* MCP formulations provide **deterministic synchronization** by allowing extra clock cycles for proper data capture  
+* FIFO techniques act as **closed-loop systems**, ensuring ordered and reliable data transfer across clock domains  
+
+[%step]
+* Two primary **MCP formulations**:  
+  1. **Closed-loop MCP** — with feedback  
+  2. **Closed-loop MCP** — with acknowledge feedback  
+
+[%step]
+* Two **FIFO-based** strategies:  
+  1. **Asynchronous FIFO** — decouples write and read clocks  
+  2. **2-deep FIFO** — simplified structure for smaller data crossings  
+
+[.notes]
+--
+El mensaje aquí es que los **multi-bit CDC** no pueden resolverse con simples sincronizadores de 2 FF por bit.  
+Las soluciones robustas usan **protocolos de control o almacenamiento temporal**:  
+- Los **MCP** introducen latencia controlada y sincronización garantizada.  
+- Los **FIFOs** separan completamente los dominios, ofreciendo una solución de tipo “handshake automático”.  
+Estas dos familias de soluciones serán detalladas a continuación; cada una ofrece un balance distinto entre **latencia, complejidad y robustez**.
+--
+
+== Multi-Cycle Path (MCP)
+
+[%step]
+* **MCP**: robust way to transfer **multi-bit CDC data**
+* Hold data stable; send a **synchronized enable** to the destination
+* Data is sampled only after enable passes through the synchronizer
+* No need to stretch pulses or align edges
+* As long as data stays stable until enable is seen, sampling is safe
+
+[.notes]
+--
+El concepto esencial de MCP: los datos cruzan directamente sin sincronización, pero **no se muestrean** hasta que el *enable* sincronizado llega.  
+Así se evita la metaestabilidad porque el dato está quieto cuando se lee.  
+El nombre “multi-cycle path” viene de que el dato se mantiene constante durante varios ciclos del reloj receptor, dando tiempo a que el control se sincronice.  
+Ventaja práctica: elimina la necesidad de calcular anchos de pulso ni dependencias de frecuencia.  
+Ideal para transferir palabras de control o registros pequeños entre dominios.
+--
+
+== MCP Formulation — Using a Synchronized Enable Pulse
+
+[%step]
+* The most common way to transfer an enable across clock domains is through a **toggling enable** signal.  
+* This toggle is passed into a **synchronized pulse generator** in the receiving domain.  
+* The generator produces a **single-cycle pulse** to indicate that the unsynchronized data word can be captured safely.
+* This synchronized pulse effectively says:  
+  “New valid data is ready; sample it now.”  
+* The pulse is **self-contained**, one clock wide, and safely aligned to the receiving clock domain.
+
+[.notes]
+--
+La forma más común de transferir un enable a través de dominios de reloj es mediante una señal de enable que cambia de estado (toggle). Este toggle se pasa a un generador de pulsos sincronizado en el dominio receptor. El generador produce un pulso de un solo ciclo para indicar que la palabra de datos no sincronizada puede ser capturada de forma segura. Este pulso sincronizado dice efectivamente: "Nuevos datos válidos están listos; muestrea ahora". El pulso es autocontenido, de un ciclo de reloj de ancho, y está alineado de forma segura con el dominio de reloj receptor.
+--  
+
+=== synchronized pulse generator
+image::mcp_sync_pulse_gen.png[width=1000,align=center]
+
+=== synchronized pulse generator
+image::mcp_sync_pulse_gen_2.png[width=1000,align=center]
+
+* 🧪 Lab 2 — Implementing a Synchronized Pulse Generator
+
+[%step]
+* Goal: implement the **pulse generator** used in the MCP synchronized enable method  
+* Tool: **EDAPlayground** (SystemVerilog + Questa/Verilator)  
+* Concept: detect a **toggle** on an input and generate a **1-cycle synchronized pulse**
+
+=== MCP toggle-pulse generation
+image::mcp_sync_pulse_gen_3.png[width=1000,align=center]
+
+* 🧪 Lab 3 — Simulate the MCP 
+
+=== Closed-loop MCP Formulation — With Feedback
+
+[%step]
+* Extension of the **MCP formulation**  
+* The **enable signal** is sent back to the sending clock domain as an **acknowledge** signal  
+* This creates an **automatic feedback path**, assuming the receiver is **always ready**  
+* Used when:
+  - Continuous data transfer is expected  
+  - The receiver can always accept new data  
+  - No additional handshake or buffering is required
+
+=== Closed-loop MCP Formulation — With Feedback
+
+image::MCP_ack.png[width=1000,align=center]
+
+[.notes]
+--
+La señal de reconocimiento (b_ack) genera un pulso de acknowledge (aack) que se utiliza como entrada para una pequeña FSM READY-BUSY de un solo estado. Esta FSM produce una señal de ready (aready) que indica cuándo es seguro volver a cambiar el valor de entrada de datos (adatain). Una vez que aready se activa, el emisor puede enviar nuevos datos (adatain) y la señal de control asend.
+--
+
+
+=== Closed-loop — MCP formulation with acknowledge feedback
+
+[%step]
+* A **fully responsive variation** of the MCP formulation  
+  — feedback is sent **only after** data has been successfully received  
+* The **enable signal** is passed back to the sending domain  
+  **after** the receiving domain asserts its **bload** acknowledgment  
+* This ensures that the sender knows the data was not only received,  
+  but also **accepted and loaded** correctly  
+
+[%step]
+* In this scheme:  
+  - The receiving domain uses a small **WAIT–READY FSM**  
+  - FSM asserts **bvalid** when data is ready to be consumed  
+  - The receiver must assert **bload** to confirm data capture  
+  - Only then is **b_ack** returned to the sending domain  
+
+[%step]
+* Advantage → ensures **data integrity and flow control** across domains  
+* Trade-off → additional **latency** due to the two-way synchronization  
+* Common in **robust CDC interfaces** and asynchronous handshakes  
+
+[.notes]
+--
+Esta variante del MCP es la más “segura” porque el dominio B no solo sincroniza el dato, sino que **confirma activamente** que el dato fue cargado antes de devolver el acknowledge.  
+La diferencia clave con el caso anterior (feedback automático) es que aquí el **bload** viene del receptor, no es automático.  
+Esto garantiza que el dominio A no envíe un nuevo dato hasta que B haya **completado la carga**.  
+Mencionar que el coste es un poco más de latencia, pero la ganancia es **fiabilidad total del handshake**.  
+Esta técnica se usa en interfaces asíncronas, FIFOs handshake y protocolos tipo “valid/ready” donde cada transferencia se confirma.
+--
+
+=== Closed-loop — MCP formulation with acknowledge feedback
+image::MCP_complete.png[width=1000,align=center]
+
+* 🧪 lab 4: Simulate Closed-loop - MCP formulation with acknowledge feedback
+
+
+== Synchronizing counters
+
+[%step]
+* When passing **counter values** across clock domains, ask: *“Do I need to capture every value?”*  
+  → Often, the answer is **no**  
+* Example: in **asynchronous FIFO** designs, **Gray-coded counters** are sampled between domains  
+  - Intermediate Gray values may be **missed**  
+  - The design remains **functionally correct**  
+* Key requirement → prevent **overrun or underrun**  so that **full** and **empty** flags remain accurate  
+* As long as the **important transitions** are captured, skipping intermediate counts is acceptable  
+
+[%step]
+* ⚠ Not every counter type is safe for CDC use  
+  - **Binary counters** can toggle multiple bits at once  
+  - This can cause incorrect sampling across the domain boundary  
+
+[.notes]
+--
+Cuando se pasan valores de contadores a través de dominios de reloj, pregúntese: "¿Necesito capturar cada valor?" A menudo, la respuesta es no. Un ejemplo son los contadores codificados en Gray en diseños de FIFO asíncronos, donde se pueden perder valores intermedios de Gray y el diseño sigue siendo funcionalmente correcto. El requisito clave es evitar el sobreflujo o subflujo para que las señales de lleno y vacío sigan siendo precisas. Siempre que se capturen las transiciones importantes, omitir conteos intermedios es aceptable.
+--
+
+=== Binary Counters
+
+[%step]
+* In binary counters, **multiple bits** often toggle simultaneously  
+  → Half of all increments require **two or more bits** to change  
+
+[%step]
+* Synchronizing a binary counter across a CDC boundary  
+  = synchronizing **multiple signals** at once  
+
+[%step]
+* Example: transition `0111 → 1000`  
+  → all **four bits** toggle simultaneously  
+  → receiver clock may sample an **illegal intermediate value**  
+
+[%step]
+* Consequences in FIFO designs:  
+  - May trigger **false full/empty** flags  
+  - May **miss real flags**, causing  
+    • **Data loss** (overflow)  
+    • **Invalid reads** (underflow)
+
+[.notes]
+--
+En los contadores binarios, a menudo se conmutan varios bits simultáneamente: la mitad de todos los incrementos requieren que dos o más bits cambien. Sincronizar un contador binario a través de un límite CDC equivale a sincronizar múltiples señales a la vez. Un ejemplo es la transición 0111 → 1000, donde los cuatro bits cambian simultáneamente. El reloj receptor puede muestrear un valor intermedio ilegal. Las consecuencias en diseños FIFO pueden ser señales de lleno/vacío falsas o perder señales reales, causando pérdida de datos (overflow) o lecturas inválidas (underflow).
+--
+
+=== Binary Counters
+
+image::binary_counter.png[width=1000,align=center]
+
+=== Gray Code Counters
+
+[%step]
+* In a **Gray code**, only **one bit changes per increment**
+* This eliminates the multi-bit sampling hazards seen in **binary counters**
+* Ideal for **asynchronous FIFO pointers** and **multi-clock systems**
+* Easy **gray ↔ binary** conversions make implementation straightforward
+
+
+[.notes]
+--
+En un código Gray, solo cambia un bit por incremento. Esto elimina los peligros de muestreo de múltiples bits vistos en los contadores binarios. Es ideal para punteros FIFO asíncronos y sistemas de múltiples relojes. Las conversiones fáciles entre gray y binario hacen que la implementación sea sencilla.
+--
+
+=== Gray Code Counters
+
+* Standard gray codes have very nice translation properties to convert gray-to-binary and back
+again. Using these conversions, it is simple to design efficient gray code counters.

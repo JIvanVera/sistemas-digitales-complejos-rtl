@@ -10,6 +10,11 @@
 :revealjs_slideNumber: true
 :revealjs_transition: slide
 :imagesdir: ../figs
+:revealjs_width: 1600
+:revealjs_height: 900
+:stem: latexmath
+:revealjs_plugins: math
+:revealjs_plugin_math: mathjax
 
 :source-highlighter: highlightjs
 :highlightjs-theme: https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.3/styles/github.min.css
@@ -20,3 +25,5 @@
 :sectanchors:
 
 :kroki-server-url: https://kroki.io
+:kroki-fetch-diagram:
+:kroki-default-format: svg
