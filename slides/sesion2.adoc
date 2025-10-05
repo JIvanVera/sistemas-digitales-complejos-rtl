@@ -751,5 +751,252 @@ En un código Gray, solo cambia un bit por incremento. Esto elimina los peligros
 
 === Gray Code Counters
 
-* Standard gray codes have very nice translation properties to convert gray-to-binary and back
-again. Using these conversions, it is simple to design efficient gray code counters.
+* Standard gray codes have very nice translation properties to convert gray-to-binary and back again.
+
+[source,bash]
+----
+bin[0] = gray[3] ^ gray[2] ^ gray[1] ^ gray[0] ; // gray>>0
+bin[1] =  1'b0   ^ gray[3] ^ gray[2] ^ gray[1] ; // gray>>1
+bin[2] =  1'b0   ^  1'b0   ^ gray[3] ^ gray[2] ; // gray>>2
+bin[3] =  1'b0   ^  1'b0   ^  1'b0   ^ gray[3] ; // gray>>3
+----
+
+[source,bash]
+----
+gray[0] = bin[0] ^ bin[1];
+gray[1] = bin[1] ^ bin[2];
+gray[2] = bin[2] ^ bin[3];
+gray[3] = bin[3] ^ 1'b0 ; // same as gray[3] = bin[3];
+----
+
+* 🧪 lab 5: Implement gray-binary converters
+
+== FIFO-based CDC
+
+* There are at least two interesting FIFO implementation strategies that can be used to address multi-bit CDC signal integrity:
+  - (1) Asynchronous FIFO implementations.
+  - (2) 2-deep FIFO implementation.
+
+[.notes]
+--
+Las fifos no las voy a dar en esta diapositiva, ya que es muy largo y he decidido crear una diapositiva aparte.
+--
+
+
+==  Naming Conventions & Design Partitioning
+
+[.text-center]
+*Consistent naming avoids confusion — and CDC bugs*
+
+[%step]
+* Naming conventions support both **clarity** and **automation**
+* Good partitioning simplifies **timing closure** and **CDC verification**
+
+[.notes]
+--
+Introducción: destacar que CDC no solo se resuelve con técnicas de hardware, sino también con organización y estilo de diseño.  
+El naming coherente y la partición por dominio reducen muchísimo los errores y facilitan el uso de scripts, checkers y herramientas de CDC.  
+Hay dos estrategias complementarias: detectar (CDC tools) y prevenir (buenas prácticas de diseño).  
+--
+
+
+=== Clock & Signal Naming Conventions
+
+[%step]
+* **Goal:** Identify the clock domain of every signal in the design  
+* **Reason:** Enables quick CDC inspection, easier script automation  
+* Convention: Use **prefixes** tied to the **clock source**
++
+|===
+| Clock | Example Prefix | Example Signals
+| uClk (micro) | `u_` | `u_addr`, `u_data`, `u_write`
+| vClk (video) | `v_` | `v_data`, `v_hsync`, `v_frame`
+| dClk (display) | `d_` | `d_pix`, `d_en`, `d_line`
+|===
++
+* Any signal crossing domains must be **synchronized** before use
+
+[.notes]
+--
+Recomendación práctica: prefijos por dominio (`u_`, `v_`, `d_`).  
+Esto permite agrupar señales fácilmente con expresiones regulares en scripts (`get_nets u_*`).  
+Importante: la convención puede variar, lo esencial es que **todo el equipo** la respete.  
+--
+
+
+=== Multi-clock Modules without Naming Convention
+
+[%step]
+* Multi-clock modules without clear naming = **CDC analysis nightmare**
+* CDC tools rely on **naming patterns** and **clock annotations**
+* Without conventions:
+  - Crossings may go **undetected**
+  - Timing reports become **unclear**
+  - Debug time increases drastically
+* Even with CDC tools — **help them help you** with good structure
+
+[.notes]
+--
+En módulos con varias entradas de reloj sin convención clara, las herramientas pueden perder cruces CDC o marcar falsos positivos.  
+Incluso con herramientas avanzadas, el diseño debe facilitar la detección de dominios y cruces.  
+Conclusión: el naming no es “cosmética”, es una herramienta de verificación.  
+--
+
+
+== Timing Verification for Each Clock Domain
+
+[.text-center]
+*Verify timing per domain — simplify, isolate, and control*
+
+[%step]
+* Timing must be **verified independently** for every clock domain  
+* Multi-clock designs = multiple, **separate STA analyses**  
+* Modern tools automate much of this, but **structure still matters**  
+* Clean **partitioning** (one clock per module) → easier closure  
+
+[.notes]
+--
+Idea central: aunque las herramientas actuales permiten análisis STA multirrelój, sigue siendo buena práctica verificar cada dominio por separado.  
+La verificación se simplifica muchísimo si cada módulo tiene un único reloj y las interfaces entre dominios están bien definidas.  
+Esto reduce la complejidad de los constraints, las excepciones y los falsos errores de timing.  
+Refuérzalo recordando que esta práctica también mejora la legibilidad del diseño y la trazabilidad de los paths.  
+--
+
+=== Clock-Oriented Design Partitioning
+
+[.text-center]
+*Partition by clock domain — isolate complexity, simplify verification*
+
+[.notes]
+--
+Partición por dominio de reloj: aislar la complejidad, simplificar la verificación.
+--
+
+=== Clock-Oriented Design Partitioning
+[%step]
+* **Guideline:** Allow only **one clock per module**  
+  → Simplifies STA and synthesis scripts  
+* **Exception:** The top-level module may connect **multiple clocks**  
+  → Keep all multi-clock logic centralized at the top  
+* **Guideline:** Partition sub-blocks into **single-clock modules**  
+  → Each sub-block can be verified independently using STA  
+* **Guideline:** Create **dedicated synchronizer modules** for CDC  
+  → Each synchronizer handles one boundary and one clock domain  
+* **Reason:**  
+  - CDC boundaries **will violate setup/hold** — that’s expected  
+  - Isolating these modules makes CDC verification **controlled and contained**
+
+[.notes]
+--
+Esta diapositiva resume las reglas clave de diseño modular por dominio de reloj.  
+Cada módulo debe tener un único reloj para simplificar tanto la síntesis como el análisis estático de tiempos (STA).  
+Solo el módulo superior (top-level) debería tener múltiples relojes, actuando como punto de unión de los dominios.  
+Además, los módulos de sincronización deben estar claramente separados, porque son los únicos donde las violaciones de setup/hold son intencionadas.  
+Esto permite aislar los riesgos de CDC y facilitar la validación.  
+--
+
+=== Clock-Oriented Design Partitioning
+image::partitioned.png[width=1000,align=center]
+
+== Timing Analysis of Clock-Partitioned Modules
+
+*One clock per module → simple, reliable STA*
+* With **clock-oriented partitioning**, each block’s I/O is synchronous to **one clock**  
+  → No false paths, clean static timing analysis  
+* Group all modules by clock domain  
+  → Each group verified as an independent synchronous block  
+  → Perform **max-time (setup)** and **min-time (hold)** checks per domain  
+* Each CDC boundary isolated by a **dedicated synchronizer module**  
+  - Prefer vendor-provided synchronizer cells  
+  - Or build 2-FF synchronizer equivalents  
+* **STA implications:**  
+  - Use `set_false_path` on synchronizer inputs  
+  - Focus on **hold checks (min-time)** to avoid too-close placement  
+  - Also check **setup (max-time)** in case flops are far apart  
+* Result: STA and synthesis become **modular, predictable, and automatable**
+
+[.notes]
+--
+Aquí se profundiza en la ventaja práctica del particionado por reloj:  
+Cada bloque tiene entradas y salidas completamente síncronas, por lo que el análisis de tiempos es directo y sin caminos falsos.  
+Las fronteras CDC están encapsuladas en módulos de sincronización, lo que permite excluir esos paths con `set_false_path`.  
+Si se usan celdas de sincronizador del proveedor (por ejemplo, en ASIC o FPGA), no es necesario analizar setup/hold internamente.  
+Si se sintetizan desde RTL, conviene revisar tanto el *hold time* (que las celdas no estén demasiado cerca) como el *setup* (que no estén demasiado lejos).  
+Resultado final: STA limpio, repetible y fácilmente automatizable por dominio de reloj.  
+--
+
+== 8.0 Summary & Conclusions
+
+[.text-center]
+*CDC errors are subtle, expensive, and preventable*  
+
+[%step]
+* CDC failures can cause **catastrophic design errors**  
+* Prevention comes from **discipline, structure, and verification**  
+* Follow **simple, proven CDC guidelines** to avoid months of debug  
+
+[.notes]
+--
+Este cierre resume toda la sesión:  
+Los errores CDC son difíciles de detectar y carísimos de corregir en silicio.  
+Pero no son misteriosos: basta aplicar disciplina en el diseño, usar buenas prácticas,  
+y apoyarse en herramientas de verificación CDC.  
+El objetivo es que el equipo entienda cómo prevenirlos, no sólo detectarlos.  
+--
+
+== 8.1 Recommended 1-bit CDC Techniques
+
+[%step]
+* For **single-bit signals** crossing clock domains:  
+  - Register the signal in the **sending domain** → remove combinational settling  
+  - Synchronize it into the **receiving domain** (typically 2-FF synchronizer)  
+  - If timing is tight → consider a **Multi-Cycle Path (MCP)** formulation  
+
+[.notes]
+--
+Aquí recordamos el patrón más básico:  
+Registrar primero para limpiar los transitorios combinacionales,  
+y luego sincronizar en el dominio destino con dos FFs.  
+Si la señal es crítica o depende del pulso exacto, usar MCP.  
+--
+
+== 8.2 Recommended Multi-bit CDC Techniques
+
+[%step]
+* For **multi-bit signals or buses**:  
+  - **Consolidate** signals whenever possible into a single-bit control  
+  - Use **MCP formulations** to synchronize enables and sample multi-bit data safely  
+  - Use **FIFOs** for large data transfers between domains  
+  - Use **Gray code counters** to prevent invalid intermediate states  
+
+[.notes]
+--
+Para buses y grupos de señales, la estrategia cambia:  
+Intentar consolidar primero.  
+Si no, pasar los datos y sincronizar sólo la señal de enable (MCP).  
+Los FIFOs y contadores Gray son patrones industriales probados.  
+--
+
+== 8.3 Recommended Naming & Partitioning
+
+[%step]
+* Use a **clock-based naming convention** to tag every signal  
+  → e.g., `uData`, `vFrame`, `pValid`  
+* Partition the design into **fully synchronous, single-clock blocks**  
+* Reserve **multi-clock logic** only for top-level integration and synchronizers  
+
+[%step]
+* Benefits:  
+  - Easier **STA** and synthesis scripting  
+  - Clear **CDC analysis** and signal tracing  
+  - Higher **team productivity** and fewer surprises  
+
+[.notes]
+--
+Concluimos con organización y estilo:  
+Cada señal debe tener un prefijo que indique su dominio de reloj,  
+y cada bloque debe ser lo más síncrono posible.  
+Esto simplifica STA, CDC checking y el trabajo en equipo.  
+La complejidad se concentra sólo en los puntos CDC controlados.  
+--
+
