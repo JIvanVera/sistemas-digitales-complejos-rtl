@@ -111,3 +111,25 @@ module graycntr #(
 	gnext = (bnext>>1) ^ bnext;
 	end
 endmodule
+
+
+// This is used in the async FIFO
+module graycntr #(
+  parameter SIZE = 5)
+(
+  output logic [SIZE-1:0] gray,
+  input logic clk, full, inc, rst_n
+);
+  logic [SIZE-1:0] gnext, bnext, bin;
+
+  always_ff @(posedge clk or negedge rst_n)
+    if (!wrst_n) begin 
+      {bin, gray} <= '0;
+    end else begin 
+      bin  <= bnext;
+      gray <= gnext;
+    end
+
+  assign bnext = !full ? bin + inc : bin;
+  assign gnext = (bnext>>1) ^ bnext;
+endmodule

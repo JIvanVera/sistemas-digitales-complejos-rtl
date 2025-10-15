@@ -45,7 +45,8 @@ module tb_lab2;
 
   // Two reset paths with different delay
   wire rst_n_a = rst_n_ext;  // 0 ns
-  wire rst_n_b; assign #1 rst_n_b = rst_n_ext; // 1 ns
+  wire rst_n_b; 
+  assign #1 rst_n_b = rst_n_ext; // 1 ns
 
   logic [7:0] q_a, q_b;
   ctr8_async u_a (.clk(clk), .rst_n(rst_n_a), .q(q_a));
