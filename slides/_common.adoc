@@ -1,6 +1,6 @@
 // ==== Metadata ====
 :course_title: SISTEMAS DIGITALES COMPLEJOS: SÍNTESIS RTL Y HLS
-:module_title: Módulo — Síntesis RTL: Resets, CDC, FIFOs y PDKs
+:module_title: Módulo — Síntesis RTL: Resets, CDC, AsyncFIFOs y PDKs
 :instructor: Ivan Vera
 :institution: Universidad de Málaga
 :term: 2025
