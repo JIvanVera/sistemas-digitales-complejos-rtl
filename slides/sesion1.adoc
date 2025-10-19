@@ -1242,8 +1242,7 @@ You will compare two approaches:
 (2) **Sequenced reset release**, where one domain waits for another.
 
 [.text-justify]
-**🎯 Goals**
-* Implement **one reset synchronizer per clock domain** for independent release.  
+**🎯 Goals** 
 * Implement a **sequenced release** where **domain B** waits for **domain A**.  
 * Observe the timing difference and the effect on inter-domain coordination.
 

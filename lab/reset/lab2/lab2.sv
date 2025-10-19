@@ -5,22 +5,30 @@
 // Includes $recovery/$removal checks.
 // =======================================
 module ctr8_async (
-  input  logic        clk,
-  input  logic        rst_n,   // async, active-low
-  output logic [7:0]  q
+  input  wire       clk,
+  input  wire       rst_n,   // async, active-low
+  output reg  [7:0] q
 );
-  always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) q <= '0;       // immediate assert
-    else        q <= q + 8'd1; // count
+  reg notifier = 0; // pulsed by timing checks
+
+  // Include notifier event in sensitivity list (library-style)
+  always @(posedge clk or negedge rst_n or posedge notifier) begin
+    if (!rst_n)
+      q <= 8'h00;
+    else if (notifier)
+      q <= 8'hxx; // drive X when recovery/removal is violated
+    else
+      q <= q + 8'd1;
   end
 
-  // Recovery/removal timing checks for safe deassertion
+  // Timing checks with notifier
   specify
     specparam TREC = 1.0, TREM = 1.0; // 1 ns window
-    $recovery( posedge rst_n, posedge clk, TREC );
-    $removal ( posedge rst_n, posedge clk, TREM );
+    $recovery( posedge rst_n, posedge clk, TREC, notifier );
+    $removal ( posedge rst_n, posedge clk, TREM, notifier );
   endspecify
 endmodule
+
 
 // ==================
 // TESTBENCH (TOP)

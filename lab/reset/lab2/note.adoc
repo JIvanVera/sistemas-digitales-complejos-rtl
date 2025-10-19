@@ -10,6 +10,6 @@ Also triggers $recovery/$removal warnings (window = 1 ns).
 
 * rst_n_a (0 ns delay) deasserts 0.5 ns before clk → violates recovery.
 
-* rst_n_b (1 ns delayed) deasserts at 50.5 ns → exits reset one cycle later.
+* rst_n_b (1 ns delayed) deasserts at 50.5 ns → violates removal.
 
 * Compare q_a vs q_b

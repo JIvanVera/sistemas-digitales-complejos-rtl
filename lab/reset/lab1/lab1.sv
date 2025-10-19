@@ -55,19 +55,19 @@ module tb_lab1;
   logic clk = 0;
   always #5 clk = ~clk;
 
-  // Short reset "glitch" (4 ns) between clock edges
-  logic rst_n_glitch = 1;
+  // Short reset between clock edges
+  logic rst_n;
   initial begin
-    // Pulse at t = 43..47 ns (between 40 and 50 ns edges)
-    #43 rst_n_glitch = 0;
-    #4  rst_n_glitch = 1;
+    rst_n <= 1;
+    @(negedge clk) rst_n = 0; // rst_n low for one cycle
+    #4 rst_n = 1;
   end
 
   // Stretcher (3 cycles)
   logic rst_n_stretched;
   rst_pulse_stretcher #(.N(3)) u_stretcher (
     .clk       (clk),
-    .rst_n_in  (rst_n_glitch),
+    .rst_n_in  (rst_n),
     .rst_n_out (rst_n_stretched)
   );
 
@@ -76,7 +76,7 @@ module tb_lab1;
   logic       co_direct, co_str;
 
   ctr8_sync u_cnt_direct (
-    .clk(clk), .rst_n(rst_n_glitch),
+    .clk(clk), .rst_n(rst_n),
     .load(1'b0), .d('0),
     .q(q_direct), .co(co_direct)
   );

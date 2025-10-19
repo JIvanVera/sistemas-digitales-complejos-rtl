@@ -38,6 +38,7 @@ module reset_sync #(
   input  logic ext_rst_n,   // active-low
   output logic sync_rst_n   // active-low
 );
+/*
   logic [STAGES-1:0] shreg;
 
   always_ff @(posedge clk or negedge ext_rst_n) begin
@@ -45,7 +46,8 @@ module reset_sync #(
     else            shreg <= {shreg[STAGES-2:0], 1'b1};  // shift-in ones
   end
 
-  assign #2 sync_rst_n =  shreg[STAGES-1]; // goes high after STAGES clocks
+  assign sync_rst_n =  shreg[STAGES-1]; // goes high after STAGES clocks
+  */
 endmodule
 
 
@@ -66,17 +68,21 @@ module tb_lab3;
   logic ext_rst_n;
   initial begin
     ext_rst_n = 0;
-    #49.5 ext_rst_n = 1;
+    #47.5 ext_rst_n = 1;
   end
 
   // Shared synchronizer
   logic mrst_n;
   reset_sync #(.STAGES(2)) u_sync (.clk(clk), .ext_rst_n(ext_rst_n), .sync_rst_n(mrst_n));
 
+  // reset dist delay
+  logic rst_n;
+  assign #2 rst_n = mrst_n;
+  
   // Two counters using synchronized reset
   logic [7:0] q0, q1;
-  ctr8_async u0 (.clk(clk), .rst_n(mrst_n), .q(q0));
-  ctr8_async u1 (.clk(clk), .rst_n(mrst_n), .q(q1));
+  ctr8_async u0 (.clk(clk), .rst_n(rst_n), .q(q0));
+  ctr8_async u1 (.clk(clk), .rst_n(rst_n), .q(q1));
 
   initial #200 $finish;
 endmodule
