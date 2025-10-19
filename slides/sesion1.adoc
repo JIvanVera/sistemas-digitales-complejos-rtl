@@ -1,13 +1,27 @@
 include::_common.adoc[]
 :imagesdir: ./private_imgs/sesion1
 
+////
+  Resets: Introduction
+////
 == Reset Strategies in Digital Design
 
 [.text-center]
 **Simple in appearance, complex in practice**
 
+[.notes]
+--
+Por que he decidido hablar de algo tan simple como el reset? 
+Esa pequena senal que pone todo a un estado conocido.
+Pues lo venemos durante esta seccion.
+--
+
+////
+  Motivation and background Part
+////
 == Reset Design — Motivation and Background
 
+=== Reset Design — Motivation and Background
 [.text-justify]
 **Reset design** is a surprisingly complex topic that is often **poorly emphasized** in engineering education.
 
@@ -17,12 +31,13 @@ include::_common.adoc[]
 
 [.notes]
 --
+El reset parece algo sencillo, pero en la práctica es complejo.
 El diseño del reset es un tema complejo y a menudo poco enfatizado en la educación.
 Errores en el reset pueden causar fallos reales en el diseño.
 La experiencia en la industria muestra que a menudo se subestima su importancia.
 --
 
-== Synchronous vs. Asynchronous Resets
+=== Synchronous vs. Asynchronous Resets
 
 [.text-justify]
 The choice between **synchronous** and **asynchronous** resets has become almost a *religious debate*  
@@ -39,7 +54,7 @@ Ambos enfoques son válidos, cada uno con sus ventajas y desventajas.
 Lo importante es entender cuándo y cómo aplicar cada método correctamente.
 --
 
-== Why Resets Matter
+=== Why Resets Matter
 
 [.text-justify]
 **Why care about these annoying little resets?**  
@@ -59,7 +74,7 @@ A well-designed reset system ensures **functional correctness, reproducibility, 
 Un buen sistema de reset asegura corrección funcional, reproducibilidad y testabilidad.
 --
 
-== The Purpose of Reset in ASICs
+=== The Purpose of Reset in ASICs
 
 [.text-justify]
 For ASICs, the reset has one primary goal:  
@@ -72,6 +87,7 @@ For ASICs, the reset has one primary goal:
 
 [.text-justify]
 In general:
+
 - Every flip-flop **should be resettable**, even if not always used by the system.
 - High-speed pipelines may **omit resets** to meet timing.
 - Designers must plan **reset trees**, buffering, and verification with care.
@@ -84,8 +100,12 @@ Como regla, reseteamos todo; excepción: followers de pipelines críticos para f
 Además del estilo, hay que diseñar el árbol de distribución, verificar recovery/removal, contemplar DFT y pensar en dominios de reloj múltiples.
 --
 
-== General Flip-Flop Coding — Bad Practice
+////
+  Flip-Flop Coding Styles
+////
+== General Flip-Flop Coding Styles
 
+=== Bad Flip-Flop Coding Style (Part I)
 [.text-justify]
 Each Verilog procedural block should **model only one type of flip-flop**.  
 Mixing **resettable** and **non-resettable** (follower) flops in the same block leads to **unwanted logic**.
@@ -94,6 +114,8 @@ Mixing **resettable** and **non-resettable** (follower) flops in the same block 
 - A *follower flip-flop* is a simple data shift register with no reset.
 - When both are coded together, the reset signal may be **interpreted as a data enable** for the follower stage.
 - This results in **extra combinational logic**, as it is shown.
+
+=== Bad Flip-Flop Coding Style (Part II)
 
 [cols="50a,50a"]
 |===
@@ -120,11 +142,12 @@ endmodule
 image::bad_ff_style.svg[width=90%]
 |===
 
-
 [.small-text]
 Bad Verilog coding style: mixing resettable and follower flip-flops.
 
-== Correct Flip-Flop Coding Style
+https://www.intel.com/content/www/us/en/docs/programmable/683539/20-4/coding-synchronous-reset-with-follower.html
+
+=== Correct Flip-Flop Coding Style
 
 [.text-justify]
 To avoid unintended logic, model **each flip-flop type** in its **own procedural block**.
@@ -159,16 +182,11 @@ module goodFFstyle (
     q2 <= q1;
 endmodule
 ----
-----
 | 
 image::good_ff_style.svg[width=90%]
 |===
 
-[.small-text]
-Good Verilog style: separate processes for different flip-flop types.
-
-
-== Flip-Flop Inference Style
+=== Flip-Flop Inference Style
 
 [.text-justify]
 When modeling flip-flops in RTL, **inference style** is key for readability and synthesis efficiency.
@@ -180,6 +198,7 @@ When modeling flip-flops in RTL, **inference style** is key for readability and 
 
 [.text-justify]
 This ensures:
+
 - Consistent **reset behavior** and **timing grouping**
 - Simplified **simulation and synthesis**
 - Cleaner and more **maintainable RTL**
@@ -191,42 +210,57 @@ https://github.com/lowRISC/ibex/blob/master/rtl/ibex_if_stage.sv#L498
 --
 El estilo de inferencia es clave para la legibilidad y eficiencia de síntesis.
 Agrupad flops relacionados en un mismo bloque `always_ff` para mantener consistencia en reset y timing.
-Usad múltiples bloques sólo para grupos funcionales grandes y separados.  s
+Usad múltiples bloques sólo para grupos funcionales grandes y separados.
 Esto facilita la simulación, síntesis y mantenimiento del RTL.
 --
 
-
-
-
-
+////
+  Flip-Flop Reset Styles
+////
 
 == ⏱ Synchronous Resets
 
 === Concept
 
 [.text-justify]
-* Reset **only takes effect** on the active clock edge
-* Implemented as part of the **combinational logic** feeding *D*
+A **synchronous reset** affects a flip-flop’s state **only on the active clock edge**.  
+It can be modeled as part of the **combinational logic** driving the `d` input.
 
 [.text-justify]
-* Coding style → `if (reset)` has **highest priority**
-* Otherwise: risk of
-  - Reset blocked in simulation
-  - **Late arrival** of reset (high fanout in reset tree)
+Recommended coding style:
+[source,verilog]
+----
+always @(posedge clk)
+  if (reset)
+    q <= 1'b0;
+  else
+    q <= d;
+----
 
 [.text-justify]
-* Even with reset buffer trees → **Minimize logic delay** after the reset reaches local logic
-* Works with **any logic library**
+⚠️ **Two common pitfalls:**
+
+- **Simulation issue:**  
+  If reset is not given top priority (`if` branch), logic may block it in simulation.
+- **Late reset arrival:**  
+  Reset may reach flip-flops too late due to **high fanout** and buffering delays.
+
+[.text-justify]
+Limiting reset logic depth and fanout improves **timing reliability**.
 
 [.notes]
---
-En síncrono, el reset se evalúa en el flanco de reloj; el reloj actúa como filtro natural de glitches.  
-Codificad siempre el reset primero en el `if`. Limitad la lógica tras el reset local, porque el árbol suele tener gran fanout.
+-- 
+El reset síncrono actúa sólo en el flanco de reloj activo y se modela como parte de la lógica combinacional que alimenta `d`.
+Usad `if (reset)` en el `always_ff @(posedge clk)` para darle máxima prioridad.
+Cuidado con dos problemas comunes: en sim, si no es prioridad, puede bloquearse; en síntesis, el reset puede llegar tarde por fanout alto.
+Limitad la profundidad y fanout del reset para mejorar la fiabilidad temporal.
 --
 
-=== Example: Counter (sync reset)
+=== Example: Loadable counter with synchronous reset
 
-[%notitle,stretch]
+[cols="50a,50a"]
+|===
+| 
 [source,systemverilog]
 ----
 module ctr8sr (
@@ -247,192 +281,283 @@ module ctr8sr (
   end
 endmodule
 ----
-*Loadable counter with synchronous reset*
+|
+image::count_ok.svg[width=90%]
+|===
 
 [.notes]
 --
-Ejemplo canónico: prioridad al reset, luego al load, y por último al incremento.  
-Fijaos que el reset viaja como dato hasta el D del flop: esto influye en inferencia y temporización.
---
-
-=== Example circuit 1
-
-image::count_sync_rst.0.png[width=800,align=center]
-
-[.notes]
---
-Aquí se ve cómo la herramienta interpreta el reset como parte de la lógica de datos.  
-Esto puede confundir la inferencia si no marcamos la intención.
+Ejemplo de contador con reset síncrono y carga síncrona.
+El reset tiene máxima prioridad, seguido de la carga y luego el incremento.
 --
 
 === Is this signal a reset?
 
 * One problem with the sync reset is that the **synthesis tool** cannot easily distinguish the reset signal from other data signals.
 
-[.notes]
---
-Mensaje: para el sintetizador, un “if (reset)” es lógica como cualquier otra.  
-Conviene ayudar con directivas si queréis un tratamiento específico.
---
-
-=== Example circuit 2
-
-image::count_sync_rst.1.png[width=500,align=center]
+[cols="50a,50a"]
+|===
+| 
+image::count_ok.svg[width=90%]
+|
+image::count_no_ok.svg[width=90%]
+|===
 
 [.notes]
 --
-Después de inferencia, vemos cómo se inserta la selección entre reset y dato.  
-Esto explica el posible impacto en profundidad lógica de la ruta de datos.
+Funcionalmente, ambos ejemplos son equivalentes. Pero vamos a verlo detenidamente, anteriormente dijimos que un mal uso del reset podría causar problemas de simulación.
+Imaginaros que hicimos la simulation en questa y todo ok, y luego hacemos la sintesis con Synopsys DC, y luego la simulación post-síntesis (gate level simulation) con VCS y vemos que el reset no funciona correctamente.
+¿Por qué puede pasar esto?
+Pues porque en el segundo caso,  el reset no tiene prioridad absoluta, y  la herramienta de síntesis puede interpretar que el reset es solo una señal mas de datos.
+Veamoslo en este ejemplo concreto:
+Este circuito el reset funciona bien y pone las entradas del mux a 0, pero que pasa con la senal ld, imaginaros que esta en un estado desconocido X, en este caso el mux tambien tendra una salida X y el flip flop no se pondra a 0 como esperamos. 
+Obviamente esto es solo un problema de simulacion, en hardware el reset siempre funcionara correctamente.
+Pero unos de los objetivos de un buen diseño es que el comportamiento en simulacion sea lo mas parecido posible al hardware real, por lo tanto este estilo de codificacion no es recomendable.
 --
 
-=== Synopsys: Reset Logic Inference
+=== Preventing Synchronous Reset Issues in Synthesis
 
-* To enable the tool to recognize reset signals and infer proper reset logic, you can use:
-  - `sync_set_reset` directive
-  - `hdlin_ff_always_sync_set_reset` variable
+[.text-justify]
+Synopsys provides the directive:
+[.highlight]
+`// synopsys sync_set_reset "rst_n"`
+
+[.text-justify]
+This tells the tool that **`rst_n` is a synchronous reset**, forcing the reset signal  
+to be **pulled as close to the flip-flop as possible** — ensuring proper initialization.
+
+[.text-justify]
+✅ **Recommendations:**
+
+- Use `sync_set_reset` once per module that includes synchronous resets.  
+- Alternatively, set the global synthesis variable:
+  [source]
+  ----
+  set hdlin_ff_always_sync_set_reset true
+  ----
+- Avoid older variables like:
+  `compile_preserve_sync_resets = "true"` (deprecated since Synopsys v3.4b)
+
+[.text-justify]
+Including this directive early prevents **re-synthesis late in the project**  
+and avoids **simulation mismatches** between RTL and gate-level models.
 
 [.notes]
 --
-En Synopsys, estas opciones facilitan que el reset se identifique e infiera como tal.  
-Aun así, base fundamental: estilo de codificación limpio, con reset de mayor prioridad.
+Synopsys ofrece la directiva `// synopsys sync_set_reset "rst_n"` para indicar que `rst_n` es un reset síncrono.
+Esto fuerza a la herramienta a colocar el reset lo más cerca posible del flip-flop, asegurando una inicialización correcta.
+Recomendaciones: usad `sync_set_reset` una vez por módulo con resets síncronos, o estableced la variable global `hdlin_ff_always_sync_set_reset true`.
+Evitad variables obsoletas como `compile_preserve_sync_resets = "true"`.
+Incluir esta directiva desde el principio previene re-síntesis tardía y evita discrepancias de simulación entre RTL y gate-level.
+DC User Guide: 459, 471
 --
 
-=== Advantages of synchronous resets (Part I)
 
-* Flip-flops with synchronous reset can be smaller → reset logic merged into D-input
-* Generally ensures the circuit is **100% synchronous**
-* Reset only occurs on a clock edge → clock filters small glitches
-  - This is no different than other data inputs; any signal that violates setup can cause metastability
+=== Advantages of Synchronous Resets (Part I)
+
+[.text-justify]
+Synchronous resets are widely used because they keep the design **fully synchronous**  
+and simplify **timing analysis** and **verification**.
+
+[.text-justify]
+**Technical advantages:**
+
+- May **reduce flip-flop area** (smaller cells if reset is merged with D-input logic)  
+  — though total gate savings are often minor.
+- Reset occurs **only on clock edges**, ensuring predictable timing.
+- The clock acts as a **glitch filter** for the reset signal.
+- Suitable when resets are **generated internally**, filtering logic equation glitches.
+- Can use **pipeline stages within the reset buffer tree** to meet clock timing.
 
 [.notes]
 --
-Ventaja clave: diseño completamente síncrono y con filtro natural de glitches.  
-El tamaño del flop puede ser menor si la librería no necesita pin dedicado.
+Los resets síncronos mantienen el diseño totalmente síncrono y simplifican análisis y verificación.
+Ventajas técnicas: posible reducción de área en FFs, timing predecible, filtrado de glitches, adecuados para resets internos y permiten pipelining en el árbol de reset.
 --
 
-=== Advantages of synchronous resets (Part II)
+=== Advantages of Synchronous Resets (Part II)
 
-* Useful when reset must be generated by **internal conditions** → filters combinational glitches
-* Reset buffer tree can use **flip-flops** → helps timing within a clock period
-* Claimed to be easier in cycle-based simulators
-  - But with good testbench practice, advantage is minimal
-* Overall: robust, but not always decisive for area or simulation speed
+[.text-justify]
+**Practical considerations:**
+
+- Recommended by the *Reuse Methodology Manual (RMM)*  for ease of use with **cycle-based simulators**.
+- In modern ASICs, **area savings are negligible**.
+- With proper testbench design, **simulation speed differences are minimal**.
+
+[.small-text]
+Summary: Synchronous resets improve determinism and timing control,  
+but provide little benefit in area or simulation performance.
 
 [.notes]
 --
-Si vuestro reset viene de lógica interna, el estilo síncrono ayuda a filtrar transitorios.  
-El árbol puede “registrarse” por niveles y simplificar timing; la ventaja en simulación es secundaria si el TB está bien escrito.
---
+Los resets síncronos son recomendados por el RMM para facilitar el uso con simuladores basados en ciclos.
+En ASICs modernos, el ahorro de área es insignificante y con un buen testbench la diferencia de velocidad en sim es mínima.
+--  
 
-=== ⚠ Disadvantages of synchronous resets (Part I)
 
-[.text-center]
-* Not all libraries include flip-flops with built-in sync reset  
-  - However, since sync reset is just another data input, you don’t really need a special flop
-* May need a **pulse stretcher** to guarantee reset width across clock edges
-  - Important in multi-clock design: a small counter can guarantee N cycles of reset
+=== Disadvantages of Synchronous Resets (Part I)
+
+[.text-justify]
+While synchronous resets simplify timing, they also introduce **practical limitations**  
+that can complicate simulation, multi-clock design, or low-power operation.
+
+[.text-justify]
+**Technical issues:**
+
+- Not all ASIC libraries include flip-flops with **built-in synchronous resets**.  
+  Reset must often be synthesized as extra logic before the flop.
+
+- May require a **pulse stretcher** to guarantee the reset is active  
+  for at least one **clock edge** — important in multi-clock systems.
+
+- **X-masking in simulation:**  
+  Reset signals generated through combinational logic can be blocked by *unknown (X)* values.  
+  This has been a recurring topic in **ESNUG** and **SNUG** discussions.
 
 [.notes]
 --
-Si el pulso de reset es estrecho, puede no coincidir con ningún flanco: estiradlo con un pequeño contador.  
-No dependáis de supuestos optimistas sobre anchura de pulso.
+Aunque los resets síncronos simplifican el timing, también introducen limitaciones prácticas que pueden complicar la simulación, el diseño multi-reloj o la operación de bajo consumo.
+Problemas técnicos: no todas las librerías ASIC tienen FFs con reset síncrono integrado; puede necesitarse un estirador de pulso para garantizar activación en un flanco; en sim, el reset puede ser bloqueado por valores X en la lógica combinacional.
 --
 
-=== ⚠ Disadvantages of synchronous resets (Part II)
+=== Disadvantages of Synchronous Resets (Part II)
 
-* In simulation, resets can be masked by **X-propagation** through logic
-* Requires a **clock** to take effect → problematic with gated clocks or no clock running
-* On power-up with **tristate buses**, async reset is safer (avoids contention)
+[.text-justify]
+**Functional limitations:**
+
+- A clock is **required to perform a reset**.  
+  If the clock is **gated off** for power saving, reset cannot propagate.
+
+- During **power-up**, synchronous resets cannot initialize tri-state buses  
+  unless additional logic de-asserts the enable path.
+
+[.text-justify]
+**Design implications:**
+
+- Works well for synchronous systems, but less ideal for  
+  **power-gated**, **multi-clock**, or **mixed-reset** architectures.
 
 [.notes]
 --
-Con relojes parados o con gating, el reset síncrono puede no surtir efecto a tiempo.  
-En buses triestado al encender, el asíncrono evita contenciones antes del primer flanco útil.
+Se requiere un reloj para realizar un reset. Si el reloj está apagado para ahorrar energía, el reset no puede propagarse. 
+Durante el power-up, los resets síncronos no pueden inicializar buses triestado sin lógica adicional.
+Diseño: funciona bien en sistemas síncronos, pero es menos ideal para arquitecturas con power-gating, multi-reloj o resets mixtos.
 --
 
 === ⚠ On power-up with tristate buses
 
-image::rst_buf_tris.png[width=700,align=center]
+[cols="50a,50a"]
+|===
+| 
+image::asyn_with_tri.svg[width=40%]
+|
+image::syn_with_tri.svg[width=90%]
+|===
 
 [.notes]
 --
-Si mantenéis estilo síncrono, desactivad directamente las salidas triestado con el reset para garantizar alta impedancia desde el arranque.
+En sistemas con buses triestado, el reset síncrono no puede garantizar la inicialización correcta en power-up, ya que el reloj puede no estar activo para propagar el reset.
+El reset asíncrono puede forzar el estado inicial de los triestados inmediatamente al encenderse.
 --
+
+=== 🧪 LAB — Practical Exercises
+**Synchronous Reset & Pulse Stretcher**
+
+[.text-justify]
+In this lab you will explore how **reset pulse width** interacts  
+with the **clock period**, and why a **pulse stretcher** may be required.
+
+[.text-justify]
+**🎯 Goals**
+* Complete the **`rst_pulse_stretcher`** module.  
+* Demonstrate that a **short reset pulse** can be missed by a **synchronous reset**  
+  if it doesn’t align with a clock edge.  
+* Use a **pulse stretcher** to hold reset for **N cycles**, ensuring reliable reset.
+
+[.text-justify]
+**👀 Observe in EPWave**
+[.small-text]
+* `rst_n_glitch`: 4 ns low between clock edges → **direct counter does not reset**.  
+* `rst_n_stretched`: stretcher holds reset **3 cycles** → **stretched counter resets**.  
+* Compare **`q_direct`** vs **`q_str`** in the waveform.
+
 
 == ⏱ Asynchronous Resets
+=== Asynchronous Resets — Introduction
 
-=== Concept & risks
+[.text-justify]
+Asynchronous resets are widely used because they allow logic to **immediately enter a known state**,  
+independent of the clock.
 
-[.text-center]
-* Commonly used because reset acts **immediately**, independent of clock
-* Flip-flops usually provide a **dedicated reset pin** (typically active-low)
-* Ensures logic goes to a **known state** as soon as reset is asserted
+[.text-justify]
+However, improper implementation can cause **severe functional failures** in digital systems.
 
-[.text-center]
-* Main issue: **reset release / removal**
-  - If not handled properly → risk of metastability & design failures
-* Sensitive to timing between **reset de-assertion** and **clock edges**
-* Requires careful design practices
+[.text-justify]
+- Reset is applied and recognized **without waiting for a clock edge**.  
+- Commonly implemented using **flip-flops with a dedicated reset pin**, usually active-low.  
+  When `reset_n` = 0 → the flip-flop is forced to its reset state.
 
-[.notes]
---
-La gran ventaja es la inmediatez; el gran riesgo es la desactivación cerca del flanco de reloj.  
-Ahí es donde aparece la metastabilidad si no se sincroniza correctamente.
---
-
-=== Coding Style for Async Reset
-
-[.text-center]
-* Reset must be part of the **sensitivity list**
-* Sensitivity only to:
-  - **Clock edge**
-  - **Reset edge**
-* Reset has **priority** (if/else style); avoid extra signals in the sensitivity list
+[.warning]
+**Main challenge:**  
+The *reset release* (also called *reset removal*) — if not handled correctly,  
+can lead to **metastability**, **glitches**, or **unpredictable startup behavior**.
 
 [.notes]
 --
-Usad `always_ff @(posedge clk or negedge rst_n)` para activo-bajo.  
-Sólo reloj y reset en la lista; el reset en el `if` con prioridad máxima.
+Los resets asíncronos permiten que la lógica entre inmediatamente en un estado conocido, independiente del reloj.
+Sin embargo, una implementación incorrecta puede causar fallos funcionales graves.
+El principal desafío es la liberación del reset: si no se maneja correctamente, puede llevar a metastabilidad, glitches o comportamientos impredecibles al arrancar.
 --
 
-=== Example: Async Reset Flip-Flop
 
-[source,systemverilog]
+=== Asynchronous Resets — Correct Coding Style (Part I)
+
+[.text-justify]
+In Verilog and VHDL, the **asynchronous nature** of a reset is defined  
+by including the reset signal in the **sensitivity list**.
+
+[.text-justify]
+**Verilog example:**
+[source,verilog]
 ----
-module async_resetFFstyle (
-  output logic q,
-  input  logic d, clk, rst_n
-);
-
-always_ff @(posedge clk or negedge rst_n) begin
+always @(posedge clk or negedge rst_n)
   if (!rst_n)
-    q <= 1'b0;      // async reset
+    q <= 1'b0;
   else
-    q <= d;         // normal operation
-end
-
-endmodule
+    q <= d;
 ----
 
 [.notes]
 --
-Ejemplo directo de estilo correcto.  
-Observad que el comportamiento de reset no depende del reloj para **entrar** en reset, pero sí sincronizaremos la **salida** de reset después.
+En Verilog y VHDL, la naturaleza asíncrona de un reset se define incluyendo la señal de reset en la lista de sensibilidad.
+--
+
+=== Asynchronous Resets — Correct Coding Style  (Part II)
+
+[.text-justify]
+**Key synthesis and simulation notes:**
+
+- In Synopsys, if any signal in the sensitivity list is edge-sensitive,  
+  **all must be edge-sensitive** → enforces correct coding style.
+- Only **clock** and **reset** signals should appear in the sensitivity list.  
+  Adding others causes **simulation mismatches** and **synthesis errors**.
+
+[.small-text]
+Good style → predictable simulation, valid synthesis, and cleaner reset timing.
+
+[.notes]
+--
+Notas clave de síntesis y simulación: en Synopsys, si alguna señal en la lista de sensibilidad es sensible a flancos, todas deben serlo; esto refuerza el estilo de codificación correcto. Solo el reloj y las señales de reset deben aparecer en la lista de sensibilidad; agregar otras causa discrepancias de simulación y errores de síntesis.
 --
 
 === Async Reset in Synthesis (Synopsys DC)
 
 [.text-center]
-* Reset nets must be **protected** from optimization
+Reset nets must be **protected** from optimization.
+
 * If reset comes from an **external pin**:
   - `set_drive 0 [get_ports reset]`
   - `set_dont_touch_network [get_nets reset]`
-
-[.text-center]
-* Alternative approaches:
-  - `set_resistance 0 [get_nets reset]`
-  - Custom *wireload model* with `resistance=0`
-  - `set_ideal_net reset` (post-2001.08)
 
 [.text-center]
 * To clean timing reports:
@@ -448,183 +573,354 @@ Proteger la red de reset para que el sintetizador no la “optimice”.
 Además, limpiad informes con `false_path` o `disable_timing` donde tenga sentido, evitando falsos positivos.
 --
 
-=== Advantages of Async Resets
+=== Advantages of Asynchronous Resets (Part I)
 
-[.text-center]
-* **Timing advantage** → No extra gates/net delays in the **data path**
-* **Independent of clock** → Can reset even when clock is absent
-* **Synthesis-friendly** with proper coding style
+[.text-justify]
+Asynchronous resets provide a **clean and direct way** to initialize logic,  
+without impacting the data path timing.
 
-[.notes]
---
-Si vais justos de timing en el datapath, el asíncrono evita meter puertas extra.  
-Además permite resetear subsistemas aunque su reloj aún no esté activo.
---
+[.text-justify]
+**Technical advantages:**
 
-=== Disadvantages of Async Resets
-
-[.text-center]
-* **DFT concern** → If not driven from I/O pin, reset nets must be disabled for scan/testing
-* **Static Timing Analysis complexity**
-  - Reset tree checked for both async & sync timing, especially **after layout**
-  - This can be reduced using a **distributed reset synchronizer** tree
-
-[.text-center]
-* **De-assertion hazard** → near active clock edge → **metastability**
-* **Noise sensitivity** → glitches may cause spurious resets
-* Remember: **assertion is safe; de-assertion is the real problem**
+- Reset logic is handled **outside the data path** → no additional delay or logic on `D` input.  
+  Ideal for **high-performance designs** with tight timing margins.
+- Guaranteed that **reset logic** will not be added to the combinational data network.
+- Circuit can be reset **independently of the clock**,  
+  allowing initialization even when the clock is gated or stopped.
 
 [.notes]
 --
-La clave: sincronizar la **salida** del reset para evitar metastabilidad.  
-En STA, aseguraos de habilitar arcos de recovery/removal y revisar tras P&R.
+Los resets asíncronos ofrecen una forma directa de inicializar la lógica sin afectar el timing del datapath.
+Ventajas técnicas: el reset se maneja fuera del datapath, sin añadir retardo o lógica en `D`; ideal para diseños de alto rendimiento. Permite resetear independientemente del reloj, útil si el reloj está apagado.
 --
 
-== Asynchronous Reset Problem
+=== Advantages of Asynchronous Resets (Part II)
 
-=== Reality check
+[.text-justify]
+**Practical benefits:**
 
-[.text-center]
-* Common **misconception**: “FPGAs don’t have the same reset issues as ASICs” ❌
-* Truth: **Both FPGA and ASIC** can fail if reset is released near a clock edge
-* Flip-flops can go **metastable** → reset loses its purpose
+- If the vendor library supports **flip-flops with asynchronous reset pins**,  
+  synthesis tools will automatically map to the correct cells.
+- Typically **no need for synthesis attributes** or manual mapping.
+- Clean behavior during both **power-up** and **manual resets**.
+
+[.small-text]
+Summary: asynchronous resets isolate reset from data timing paths  
+and provide flexibility for clock-independent initialization.
 
 [.notes]
 --
-Esto no es un “problema sólo de ASICs”.  
-Las FPGAs sufren exactamente el mismo riesgo de metastabilidad si sueltas el reset cerca del flanco.
+Beneficios prácticos: si la librería soporta FFs con pines de reset asíncrono, las herramientas de síntesis mapearán automáticamente a las celdas correctas, sin necesidad de atributos o mapeos manuales. Comportamiento limpio durante power-up y resets manuales.
 --
 
-=== Simulation vs. Silicon
+=== Example: Loadable counter with asynchronous reset
 
-[.text-center]
-* In **simulation** → reset always works (controlled environment)
-* In **real system** → reset release can occur close to clk edge
-* Result: **intermittent, hard-to-debug failures**; system may enter an **unknown state**
+[cols="50a,50a"]
+|===
+| 
+[source,systemverilog]
+----
+module ctr8sr (
+  input  logic        clk,
+  input  logic        rst_n,  // active low reset
+  input  logic        load,
+  input  logic [7:0]  d,
+  output logic [7:0]  q,
+  output logic        co
+);
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n)         // async reset
+      {co,q} <= '0;
+    else if (load)      // sync load
+      {co,q} <= d;
+    else                // sync increment
+      {co,q} <= q + 1'b1;
+  end
+endmodule
+----
+|
+image::count_rst_asyn.svg[width=90%]
+|===
+
+
+=== Disadvantages of Asynchronous Resets (Part I)
+
+[.text-justify]
+Although widely used, asynchronous resets can introduce **simulation, test, and timing challenges**  
+if not handled carefully.
+
+[.text-justify]
+**Practical limitations:**
+
+- For **DFT (Design for Test)**, if the asynchronous reset is **not driven from an I/O pin**,  
+  it must be **disabled** during scan operations.
+- **Static timing analysis (STA)** is more complex — reset release must meet  
+  a **one-clock-period constraint** across the entire reset tree.
+- Proper timing validation requires **post-layout analysis**.
 
 [.notes]
 --
-La sim no reproduce jitter/ruido real.  
-En hardware aparecen fallos intermitentes y difíciles de reproducir: síntoma típico de un release mal sincronizado.
+Aunque son ampliamente usados, los resets asíncronos pueden introducir desafíos de simulación, prueba y timing si no se manejan con cuidado.
+Limitaciones prácticas: para DFT, si el reset asíncrono no viene de un pin I/O, debe deshabilitarse en scan; el análisis estático de timing es más complejo, ya que la liberación del reset debe cumplir una restricción de un ciclo en todo el árbol; se requiere análisis post-layout.
 --
 
-=== Key Lesson
+=== Disadvantages of Asynchronous Resets (Part II)
 
-[.text-center]
-* Reset release must be carefully controlled; avoid de-assertion near clock edges
-* Applies to both:
-  - **Asynchronous resets**
-  - **Synchronous resets** (must keep edges away from clk)
+[.text-justify]
+**Critical risks:**
+
+- The **de-assertion** of reset (reset removal) near a clock edge can cause **metastability**,  
+  corrupting the known reset state.
+- Sensitive to **noise or glitches** on system reset lines → may cause **spurious resets**.
+- Even synchronous resets can fail if spurious pulses occur near clock edges.
+
+[.small-text]
+Summary: asynchronous resets require careful release timing and reset tree analysis  
+to avoid metastability and unpredictable startup behavior.
 
 [.notes]
 --
-Mensaje para llevarse: controlad la salida de reset.  
-Incluso en síncrono, aseguraos de que los bordes no caen justo en el flanco activo.
+Riesgos críticos: la desactivación del reset cerca de un flanco de reloj puede causar metastabilidad, corrompiendo el estado conocido; son sensibles a ruido o glitches en las líneas de reset, lo que puede causar resets espurios. Incluso los resets síncronos pueden fallar si ocurren pulsos espurios cerca de los flancos de reloj.
 --
 
-== Timing Considerations
+=== The Asynchronous Reset Problem (Part I)
 
-=== Reset Recovery Time
+[.text-justify]
+Many engineers believe that FPGAs and ASICs behave differently regarding resets —  
+**they do not**. The same **asynchronous reset issues** apply to both.
 
-[.text-center]
-* Time between **reset de-assertion** and next **clock edge**
-* Equivalent to a **setup time (tsu)**: Reset inactive setup before CLK↑
+[.text-justify]
+**Common misconception:**
 
-[.text-center]
-* If violated → signal integrity issues and **metastability** in FF outputs
+> “An asynchronous system reset can always safely bring the chip to a known state.”
 
-[.text-center]
-* SystemVerilog (IEEE 1800-2017) supports checks:
-  - `$recovery`, `$removal`, `$recrem`
+[.notes]
+-- 
+Muchos ingenieros creen que FPGAs y ASICs se comportan de manera diferente con respecto a los resets; no es así. Los mismos problemas de resets asíncronos se aplican a ambos.
+--
+
+=== The Asynchronous Reset Problem (Part II)
+
+[.text-justify]
+In reality:
+
+- If **reset is released** (*de-asserted*) **near a clock edge**,  
+  flip-flops may enter a **metastable state**.
+- Designs may pass all **simulations**, yet fail **intermittently in hardware**.
+- Reset removal must be handled carefully to prevent **unknown system states**.
+
+[.notes]
+-- 
+En realidad, si el reset se libera cerca de un flanco de reloj, los flip-flops pueden entrar en un estado metastable. Los diseños pueden pasar todas las simulaciones, pero fallar intermitentemente en hardware. La liberación del reset debe manejarse con cuidado para prevenir estados desconocidos del sistema.
+--
+
+=== Reset Recovery & Removal Timing
+
+[.text-justify]
+Improper timing of reset release can lead to **metastability** or **inconsistent initialization**.
+
+[.float-group]
+--
+image::rem_rec_reset.svg[width=40%]
+--
+
+=== Reset recovery time
+- Refers to the time between **reset de-assertion** and the next **active clock edge**.
+- Modeled in Verilog-2001 using:
+  `$recovery`, `$removal`, and `$recrem` (*combined check*).
+- Equivalent to a **setup time**:  
+  *“PRE or CLR inactive setup time before CLK↑”*.
+- Violating recovery time may cause **metastable or undefined outputs**.
 
 [.notes]
 --
-El “recovery” es como un setup del reset respecto al flanco.  
-Usad `$recovery/$removal/$recrem` para chequear que estáis dentro de margen.
+El tiempo de recuperación del reset se refiere al tiempo entre la desactivación del reset y el siguiente flanco de reloj activo. Se modela en Verilog-2001 utilizando: $recovery, $removal y $recrem (verificación combinada).
 --
 
-=== Reset Removal Across Flip-Flops
+=== Reset removal time
+- When reset removal is **asynchronous**, propagation delays may cause  
+  some flip-flops to **exit reset earlier than others**.
+- The result: **different parts of the circuit** begin operation in **different cycles**.
+- Leads to **intermittent startup errors** or **partial initialization**.
 
-[.text-center]
-* When reset removal is **asynchronous** to clk, small differences in propagation (reset vs. clk) →
-* Some flip-flops leave reset **earlier than others**
-* Risk: registers exit reset state in **different clock cycles**
+[.small-text]
+Summary: ensure that reset release timing respects $recovery / $removal checks  
+and that all flip-flops exit reset synchronously.
 
 [.notes]
 --
-Pequeñas diferencias de ruta pueden hacer que unos FF salgan de reset uno o dos ciclos antes que otros.  
-Si no lo tenéis en cuenta, podéis arrancar el sistema en un estado inconsistente.
+El tiempo de eliminación del reset, cuando es asíncrono, puede causar que algunos flip-flops salgan del reset antes que otros debido a retrasos de propagación. Esto puede llevar a errores intermitentes al arrancar o inicialización parcial.
 --
 
-== Reset Synchronizer
+=== 🧪 LAB — Practical Exercises
+**Asynchronous Reset: Deassertion Hazard**
 
-=== Why?
+[.text-justify]
+In this lab you will explore the **hazards of asynchronous reset deassertion**  
+when it occurs close to a clock edge. You’ll observe how **different path delays**  
+cause registers to **exit reset in different cycles**, leading to inconsistent states  
+and triggering **$recovery / $removal** violations.
 
-[.text-center]
-* Async resets **work in sim**… but may fail in hardware on de-assertion
-* Need **async assert** + **sync de-assert**
-* Standard solution: **2-FF reset synchronizer**
+[.text-justify]
+**🎯 Goals**
+* Demonstrate that deasserting an **asynchronous reset** near a **clock edge**  
+  can lead to **metastability** or **mismatched reset release**.  
+* Observe how two reset paths with small delay differences exit reset  
+  in different clock cycles.  
+* Identify and understand the **$recovery / $removal** warnings.
+
+[.text-justify]
+**👀 Observe in EPWave**
+[.small-text]
+* `rst_n_ext` goes high at 49.5 ns, while `clk` rises at 50 ns.  
+* `rst_n_a` (0 ns delay) deasserts **0.5 ns before** the clock → **violates recovery**.  
+* `rst_n_b` (1 ns delay) deasserts **0.5 ns after** the clock → **exits reset one cycle later**.  
+* Compare **`q_a`** vs **`q_b`** to visualize asynchronous release effects.
+
+
+=== Reset Synchronizer
+
+[.highlight]
+EVERY ASIC USING AN ASYNCHRONOUS RESET SHOULD INCLUDE A
+RESET SYNCHRONIZER CIRCUIT!!
+
+=== Reset Synchronizer
+
+[.text-justify]
+Without a reset synchronizer, an **asynchronous reset** may fail in real hardware  
+even if it appears to work perfectly during simulation.
+
+[.text-justify]
+The reset synchronizer combines the **advantages** of both asynchronous and synchronous resets:
+
+- An **external asynchronous reset** drives a pair of *master reset flip-flops*.
+- These flip-flops propagate the reset signal **asynchronously** to the entire design  
+  through the **reset buffer tree** → all flip-flops are reset immediately.
+- **Reset removal** occurs synchronously:  
+  the first flip-flop’s D-input is tied to `1'b1` and is clocked through the synchronizer.
+- Typically, it takes **two clock cycles** after reset release for the reset to be safely removed.
 
 [.notes]
 --
-Patrón universal: 2 FFs en serie por dominio de reloj para “entregar” el release alineado al flanco.  
-Así mantenemos la rapidez del asíncrono al entrar y la seguridad del síncrono al salir.
+Sin un sincronizador de reset, un reset asíncrono puede fallar en hardware real incluso si parece funcionar perfectamente durante la simulación.
+El sincronizador de reset combina las ventajas de ambos tipos de resets: un reset asíncrono externo impulsa un par de flip-flops maestros de reset. Estos flip-flops propagan la señal de reset asíncronamente a todo el diseño a través del árbol de buffers de reset, reseteando todos los flip-flops inmediatamente. La liberación del reset ocurre síncronamente: la entrada D del primer flip-flop está atada a `1'b1` y se clockea a través del sincronizador. Normalmente, se necesitan dos ciclos de reloj después de la liberación del reset para que el reset se elimine de manera segura.
 --
 
-=== Circuit
+=== Reset Synchronizer
 
-image::rst_sync.png[width=500,align=center]
+[.float-group]
+--
+image::rst_sync.svg[width=40%]
+--
 
-[.text-center]
-* External reset asynchronously resets two FFs
-* These FFs drive the **master reset** across the design
-* De-assertion is synchronized → requires **2 clock cycles**
-* Second FF protects against metastability
-* Synchronizer FFs must be kept **off scan chain**
+=== Reset Synchronizer Metastability??
+
+[.text-justify]
+Could the **reset synchronizer** go itself into **metastable** when reset is released?
+
+[.text-justify]
+👉 The answer: **NO**
+
+- The **first flip-flop** *can* go metastable  
+  if reset is removed too close to the rising clock edge  
+  → this is within the **reset recovery window**.
+- The **second flip-flop** is immune:  
+  when reset is released, both its input and output are **logic 0**,  
+  so there’s **no differential** to cause oscillation or instability.
 
 [.notes]
 --
-Primer FF puede quedar meta si el release cae cerca del flanco; el segundo absorbe ese meta.  
-Recordad: excluid estos FFs del scan o tratadlos como “safe” en DFT.
+¿Puede el sincronizador de reset volverse metastable? La respuesta es NO. El primer flip-flop puede volverse metastable si el reset se elimina demasiado cerca del flanco ascendente del reloj, dentro de la ventana de recuperación del reset. El segundo flip-flop es inmune: cuando se libera el reset, tanto su entrada como su salida son lógicas 0, por lo que no hay diferencial que cause oscilación o inestabilidad.
 --
 
-=== Timing
+=== 🧪 LAB — Practical Exercises
+**2-FF Reset Synchronizer: Async Assert, Sync Release**
 
-image::rst_sync_II.png[width=500,align=center]
+[.text-justify]
+In this lab you will learn how to **safely release an asynchronous reset**  
+using a **two-flip-flop synchronizer**. This ensures that all logic exits reset  
+**synchronously to the local clock**, avoiding metastability or skew  
+between domains.
 
-* Reset distribution timing is the sum of **clk→q** propagation delay + **reset tree delay** + **recovery time**
+[.text-justify]
+**🎯 Goals**
+* Implement a **2-FF reset synchronizer** with asynchronous assertion  
+  and synchronous deassertion.  
+* Ensure both counters exit reset **aligned to the clock**,  
+  two cycles after external release.  
+* Compare this behavior with the results from **Lab 2**.
+
+[.text-justify]
+**👀 Observe in EPWave**
+[.small-text]
+* `ext_rst_n` deasserts at **49.5 ns** (same as Lab 2).  
+* `mrst_n` (synchronizer output) goes high **after 2 rising clock edges**.  
+* Both **`q0`** and **`q1`** exit reset **in sync**, demonstrating clean reset removal.
+
+
+== Simulation Testing with Resets
+
+=== Simulation Testing with Resets
+[.text-justify]
+In simulation, if **reset** is de-asserted on a **posedge clock**, results are *not guaranteed*:
+
+- **RTL and gate-level** simulations may behave **differently**  due to event scheduling race conditions.
+- Different **IEEE-Verilog compliant simulators** may even yield **different results**.
+- ASIC library models often drive **`X` outputs** on reset recovery time violations  
+  (typically modeled via a **UDP – User Defined Primitive**).
 
 [.notes]
 --
-Para que todos salgan seguros, la suma clk→q del sincronizador, más el retardo del árbol, más el recovery en destino, debe cumplir margen.  
-Esto se verifica tras P&R.
---
+En simulación, si el reset se desactiva en un flanco positivo del reloj, los resultados no están garantizados: las simulaciones RTL y gate-level pueden comportarse de manera diferente debido a condiciones de carrera en la programación de eventos. Diferentes simuladores compatibles con IEEE-Verilog pueden incluso producir resultados diferentes. Los modelos de librerías ASIC a menudo generan salidas `X` en violaciones del tiempo de recuperación del reset (normalmente modeladas mediante un UDP - User Defined Primitive).
+--  
 
-=== Timing (summary)
-
-[.text-center]
-* Reset distribution timing = **clk→q delay** + **reset tree delay** + **reset recovery time**
-* Ensures all destination FFs see reset release **safely aligned**
-* Avoids asynchronous hazards across reset tree
-
-[.notes]
---
-Resumen visual: liberamos reset de forma síncrona y lo distribuimos cumpliendo recovery en todos los endpoints.  
-Así evitamos salidas descoordinadas del reset.
---
-
-=== Lab idea
-
-* Run a simulation **without** a reset synchronizer, using async-reset FFs
-* De-assert reset near a clk edge and observe behavior vs. **with** synchronizer
+=== ✅ Recommended Guidelines
+- Always **change the reset** on the **inactive clock edge**,  
+  far from any potential **recovery time violation**.
+- Use **blocking assignments** for reset transitions in the testbench.
+- Assert **reset at time 0** to initialize all registers and flip-flops.
+- Use a **nonblocking assignment (`<=`)** at time 0 to avoid Verilog race conditions.
 
 [.notes]
 --
-Demostración rápida: sin sincronizador veréis X’s/glitches en salidas; con 2 FFs, el arranque es repetible y limpio.  
-Ideal para “vender” internamente la necesidad del patrón.
+Siempre cambiad el reset en el flanco inactivo del reloj, lejos de cualquier posible violación del tiempo de recuperación. Usad asignaciones bloqueantes para las transiciones de reset en el testbench. Afirmad el reset en el tiempo 0 para inicializar todos los registros y flip-flops. Usad una asignación no bloqueante (`<=`) en el tiempo 0 para evitar condiciones de carrera en Verilog.
 --
+
+=== Example — Good Testbench Reset Handling
+[source,verilog]
+----
+initial begin // clock oscillator
+  clk <= 0;               // time 0 nonblocking assignment
+  forever #(`CYCLE/2) clk = ~clk;
+end
+
+initial begin
+  rst_n <= 0;             // time 0 nonblocking assignment
+  @(posedge clk);         // wait past time 0
+  @(negedge clk) rst_n = 1; // rst_n low for one cycle
+  ...
+end
+----
+
+[.small-text]
+Figure: Safe reset stimulus avoids race conditions and ensures  
+consistent results in both RTL and gate-level simulations.
+
+[.notes]
+--
+Ejemplo de manejo seguro del reset en el testbench para evitar condiciones de carrera y asegurar resultados
+consistentes en simulaciones RTL y gate-level.
+--
+
+
 
 == Reset Distribution Tree
+=== Reset Distribution Tree
+
+[.float-group]
+--
+image::rst_tree.svg[width=50%]
+--
 
 === Overview
 
@@ -634,9 +930,11 @@ Ideal para “vender” internamente la necesidad del patrón.
 * Key difference:
   - Clock skew must be tightly controlled
   - Reset skew is less critical — but **must still meet recovery time**
+
 * Design tip:
   - Always analyze **clock vs. reset timing**
   - Reset should not violate setup/hold on flip-flops
+
 * Ignoring reset tree design can lead to **unpredictable behavior**
 
 [.notes]
@@ -645,188 +943,364 @@ El árbol de reset no exige skew tan ajustado como el de reloj, pero sí llegar 
 Comparad rutas de reloj y reset y evitad violaciones de setup/hold en destinos.
 --
 
-=== Synchronous Reset Distribution
 
-[.text-center]
-* Technique: build a **distributed reset tree** with embedded flip-flops
-* Each module:
-  - Receives a raw reset (`reset_raw`)
-  - Registers it once with the local clock
-  - Uses the registered signal (`reset`) inside the module and passes it down
+=== Synchronous Reset Distribution Technique (Part I)
 
-[.text-center]
-* Advantages:
-  - No need to reach all FFs in one clock cycle
-  - Reset treated like any other **data signal**
-  - Simplifies **timing analysis** and keeps fanout reasonable
-* Trade-off:
-  - Reset may take **several cycles** to fully propagate
-  - Similar to handling resets in **multi-clock designs**
+[.text-justify]
+For **synchronous resets**, a practical technique is to build a **distributed reset tree**  
+with **flip-flops embedded** at each module level.
+
+[.text-justify]
+Key Idea:
+
+- Each module registers its incoming reset signal:
+  - The registered version drives internal logic.
+  - It also drives the reset input of any submodules.
+- Thus, it may take **several clock cycles**  
+  for all flip-flops in the design to be reset.
 
 [.notes]
 --
-Patrón práctico: registrar `reset_raw` por nivel.  
-Aceptamos latencia de propagación a cambio de fanout razonable y timing local sencillo.
+Para resets síncronos, una técnica práctica es construir un árbol de reset distribuido con flip-flops embebidos en cada nivel de módulo.
+Cada módulo registra su señal de reset entrante: la versión registrada impulsa la lógica interna y también impulsa la entrada de reset de cualquier submódulo.
+Así, puede tomar varios ciclos de reloj para que todos los flip-flops en el diseño sean reseteados.
 --
 
-=== Asynchronous Reset Distribution
+=== Synchronous Reset Distribution Technique (Part I)
 
-[.text-center]
-* Technique: use a **distributed reset synchronizer** at each hierarchy level
-  - 2 FFs per synchronizer (async assert, sync de-assert)
-  - Local reset drives **async reset pins** directly
+[source,verilog]
+----
+input reset_raw;
+// synopsys sync_set_reset "reset"
+always @(posedge clk)
+  reset <= reset_raw;   // synchronized local reset
+----
 
-[.text-center]
-* Characteristics:
-  - Reset asserted immediately (async)
-  - Reset released gradually across multiple clock cycles
-  - Removes need for manual timing fixes after P&R
-
-[.text-center]
-* Considerations:
-  - Design must tolerate **staggered release**
-  - Proper tool settings required to check **recovery/removal** timing
-  - Especially useful in **FPGA** designs:
-    • Avoids LUT usage from sync resets  
-    • Works with limited Global Set/Reset resources
+[.float-group]
+--
+image::rst_sync_tree_tec.png[width=40%]
+--
 
 [.notes]
 --
-La versión distribuida del sincronizador evita ajustes manuales de backend y se adapta muy bien a FPGA.  
-Eso sí, verificad que el sistema tolera un release escalonado entre bloques.
+Diagrama para reforzar: el release viaja por niveles; cada nivel entrega un reset local que cumple recovery en su propio dominio.
+--  
+
+=== Synchronous Reset Distribution Technique (Part II)
+
+[.text-justify]
+Advantages:
+
+- Simplifies **timing analysis** → reset behaves like a local data signal.
+- Reduces **fanout** and **tree delay** at each hierarchy level.
+- Works well in **modular** and **multi-clock** designs.
+- Provides predictable, stepwise reset release across modules.
+
+[.note-box]
+With this approach, reset propagates cleanly across hierarchy levels,  
+but designers must account for the **multi-cycle delay** before the system is fully reset.
+
+[.notes]
+--
+Ventajas: simplifica el análisis de timing, reduce fanout y delay del árbol en cada nivel jerárquico, funciona bien en diseños modulares y multi-reloj, y proporciona una liberación de reset predecible y escalonada a través de los módulos.
+Con este enfoque, el reset se propaga limpiamente a través de los niveles jerárquicos, pero los diseñadores deben tener en cuenta el retraso de múltiples ciclos antes de que el sistema esté completamente reseteado.
 --
 
-=== Reset tree timing (visual)
+=== Asynchronous Reset Distribution Technique
 
-image::rst_sync_tree.png[width=500,align=center]
+[.text-justify]
+For **asynchronous resets**, a robust approach is to use a **distributed reset synchronizer tree**,  
+similar to the synchronous reset tree, but with **two flip-flops per level** instead of one.
+
+[.notes]
+--
+Para resets asíncronos, un enfoque robusto es usar un árbol de sincronizadores de reset distribuido, similar al árbol de reset síncrono, pero con dos flip-flops por nivel en lugar de uno.
+--
+
+
+=== Key Idea
+- Each module contains a **local reset synchronizer**:
+  - Two flip-flops ensure asynchronous **assertion** and synchronous **release**.
+  - The local reset drives **asynchronous reset pins** of internal flip-flops.
+- The reset propagates hierarchically —  
+  it may take **several clock cycles** for the entire design to come out of reset.
+
+[.notes]
+--
+Cada módulo contiene un sincronizador de reset local: dos flip-flops aseguran la afirmación asíncrona y la liberación síncrona. El reset local impulsa los pines de reset asíncrono de los flip-flops internos. El reset se propaga jerárquicamente, pudiendo tomar varios ciclos de reloj para que todo el diseño salga del reset.
+--
+
+=== Advantages
+- Reset buffering and timing are **localized** per hierarchy level.
+- **Synthesis tools** can automatically handle timing and buffering —  
+  no manual P&R adjustments needed.
+- Ideal for **FPGAs**, where:
+  - GSR (Global Set/Reset) may cause unwanted async release issues.
+  - Multiple clock domains can each have their own **local synchronizer**.
+  - Saves **LUT resources** compared to synchronous resets.
+- **DFT concerns** are irrelevant in FPGAs (no internal scan chains).
+
+[.note-box]
+This distributed reset-synchronizer method removes the need  
+for complex backend reset-tree balancing while ensuring safe, deterministic reset release.
+
+[.notes]
+--
+El árbol distribuido con sincronizadores locales por módulo es ideal para resets asíncronos.  
+Cada módulo tiene su propio sincronizador de 2 FFs, que maneja afirmación asíncrona y liberación síncrona.
+Esto localiza el buffering y timing, facilitando la síntesis y evitando ajustes manuales en P&R.
+Perfecto para FPGAs, donde GSR puede causar problemas y cada dominio de reloj puede tener su propio sincronizador, ahorrando LUTs.
+--  
+
+===  Asynchronous Reset Distribution (visual)
+
+image::rst_sync_tree.png[width=50%,align=center]
 
 [.notes]
 --
 Diagrama para reforzar: el release viaja por niveles; cada nivel entrega un reset local que cumple recovery en su propio dominio.
 --
 
-== Reset-Glitch Filtering
 
-[.text-center]
-* Problem: **asynchronous resets** are sensitive to glitches
-  - Any pulse wider than min. reset width will reset the FF
+== Reset-Glitch
+=== Reset-Glitch Filtering
 
-[.text-center]
-* Possible solution: **digital delay filter**
-  - Delay line filters out short glitches
-  - Requires Schmitt-trigger input pad
-  - Vendor hard-macro or hand-instantiated delay
+[.text-justify]
+If the **reset line is subject to glitches**,  
+**any short pulse** that meets the minimum reset width  
+can **unexpectedly reset** flip-flops — a **serious reliability issue**.
 
-[.text-center]
-* Caveats:
-  - Delay varies with **PVT (process, voltage, temperature)**
-  - Must use *dont_touch* or equivalent to prevent optimization
-  - Only needed in systems with noisy reset sources
+=== Problem
+- Asynchronous resets react to **any valid pulse**, even spurious ones.  
+- Glitches on the reset line → **undesired resets** or **system instability**.  
+
+=== Solution
+* Use a **digital delay–based glitch filter** to ignore narrow pulses.
+* Input pad should be **Schmitt-triggered** for extra noise immunity.
+* Delay can be implemented with:
+  - Vendor **delay macros** or
+  - A **chain of slow buffers** (ensure synthesis doesn’t optimize them away).
+
+[.note-box]
+Designers must evaluate whether their system reset source  
+**requires glitch filtering** — not all systems do,  
+but ignoring it can lead to **intermittent and hard-to-debug resets**.
 
 [.notes]
 --
-Si el reset de placa es ruidoso, se puede filtrar con retardo digital + pad Schmitt.  
-Es un apaño dependiente de PVT: último recurso; mejor arreglar el origen del ruido si es posible.
+Si la línea de reset está sujeta a glitches, cualquier pulso corto que cumpla el ancho mínimo puede resetear inesperadamente los flip-flops, causando problemas de fiabilidad.
+Solución: usar un filtro de glitches basado en retardo digital para ignorar pulsos estrechos. La entrada debe ser Schmitt-triggered para mayor inmunidad al ruido. El retardo puede implementarse con macros de retardo del proveedor o una cadena de buffers lentos (asegurando que la síntesis no los optimice).
+Evaluad si la fuente de reset requiere filtrado de glitches; ignorarlo puede llevar a resets intermitentes y difíciles de depurar.
 --
+
+== DFT
+=== DFT for Asynchronous Resets
+
+[.text-justify]
+**Design-for-Test (DFT)** can be challenging with **asynchronous resets**,  
+but only if the reset is part of the **functional logic**.  
+When used **purely for initialization**, DFT remains simple and effective.
+
+[.notes]
+--
+NO HABLAR DE DFT, DEJAR SOLO SLIDE PARA REFERENCUIA.
+El DFT con resets asíncronos es sencillo si el reset se usa sólo para inicialización y no forma parte de la lógica funcional.
+--
+
+=== Key Guidelines
+- Keep **asynchronous resets** outside functional data paths.  
+  → Only reset synchronizers should contain reset logic.
+- During **scan testing (ATPG)**:
+  - The **reset signal must be held inactive** (non-reset state).  
+  - If internally generated, mask it using a **test mode pin**.
+- The **two flip-flops** of each reset synchronizer  
+  should **not be included in the scan chain**.
+
+[.notes]
+--
+Mantened los resets asíncronos fuera de los datapaths funcionales; sólo los sincronizadores deben contener lógica de reset.
+Durante las pruebas de scan, el reset debe mantenerse inactivo; si es interno, enmasárcalo con un pin de modo test.
+Los dos FFs de cada sincronizador no deben incluirse en la cadena de scan.  
+--
+
+=== Manual Reset Test Sequence
+1. Scan in all `1`s into the scan chain.  
+2. Assert and release reset.  
+3. Scan out the result, then scan in all `0`s.  
+4. Assert and release reset again.  
+5. Scan out the result.  
+6. Hold reset inactive and proceed with ATPG vectors.
+
 
 == Multi-Clock Reset Issues
 
-=== General
+=== Multi-Clock Reset Issues (Part I)
 
-[.text-center]
-* Each **clock domain** needs its own:
-  - Asynchronous reset synchronizer
-  - Reset distribution tree
+[.text-justify]
+In **multi-clock designs**, each clock domain must have its own  
+**asynchronous reset synchronizer** and **reset distribution tree**.
 
-[.text-center]
-* **Assertion** of reset is safe → affects all domains immediately
-* **Removal** of reset is the challenge:
-  - Must ensure recovery time per domain
-  - Avoid unsynchronized startup
-
-[.text-center]
-* Two possible approaches:
-  1) **Non-coordinated** reset removal (each domain independently)
-  2) **Sequenced** coordination (controlled release across domains)
+==== Key Problem
+- **Asserting** reset asynchronously is simple.  
+- The challenge is the **safe release** of reset across different clock domains:
+  - Prevent **recovery time violations**.
+  - Ensure **synchronized startup** of logic.
 
 [.notes]
 --
-Un sincronizador por dominio de reloj.  
-La afirmación simultánea no es problema; la desactivación debe estar coordinada con el reloj local y, si hace falta, con el orden de arranque.
+En diseños multi-reloj, cada dominio debe tener su propio sincronizador y árbol de distribución de reset asíncrono.
+El problema clave es la liberación segura del reset en diferentes dominios: evitar violaciones de recovery y asegurar un arranque sincronizado.
 --
 
-=== Non-Coordinated Reset Removal
+=== Multi-Clock Reset Issues (Part II)
 
-[.text-center]
-* In many **multi-clock designs**, the exact moment of reset removal per domain **does not matter**
-* Safe when **cross-domain communication** uses:
-  - Request/Acknowledge handshaking
-  - Delay in acks does not cause invalid execution
+==== Design Techniques
+1. **Non-coordinated reset removal**  
+   - Each clock domain releases reset independently.  
+   - Simple implementation, may cause temporary inter-domain mismatches.
 
-[.text-center]
-* Solution:
-  - Use **independent asynchronous reset synchronizers**
-  - Each clock domain (A, B, C…) has its own reset (arst_n, brst_n, crst_n)
-  - Removal sequence/order is irrelevant
+2. **Sequenced (coordinated) reset removal**  
+   - Resets are de-asserted in a defined order.  
+   - Ensures predictable system bring-up across all domains.
 
 [.notes]
 --
-Si todos los cruces usan handshake, el orden de salida de reset por dominios no es crítico.  
-Basta con un sincronizador independiente en cada dominio.
---
+Técnicas de diseño para la liberación de resets en sistemas multi-reloj: eliminación no coordinada (cada dominio libera reset independientemente) y eliminación secuenciada (resets desactivados en un orden definido).
+--  
 
-=== Sequenced Reset Removal
+=== Non-Coordinated Reset Removal (Part I)
 
-[.text-center]
-* Some **multi-clock designs** require **ordered** reset removal
-* Example:
-  - aclk logic must start **before** bclk logic
-  - bclk logic must start **before** cclk logic
+[.text-justify]
+In many **multi-clock systems**, the **relative timing** of reset release  
+between clock domains **does not matter**.
 
-[.text-center]
-* Solution:
-  - Use **prioritized asynchronous reset synchronizers**
-  - Highest priority reset input tied **high**
-  - Lower domains’ resets chained to **master resets** from higher domains
+==== Typical Scenario
+- Each clock domain has its **own reset synchronizer**.  
+- Resets (`arst_n`, `brst_n`, `crst_n`, …) may be released  
+  **in any order or at different times**.  
+- Cross-domain communication uses **handshake protocols**  
+  (request/acknowledge), ensuring safe synchronization  
+  even if domains start up at different times.
 
 [.notes]
 --
-Cuando hay dependencias duras (p.ej., memoria/PLL antes que fabric), encadenamos los “master resets” para imponer el orden de arranque.
+En muchos sistemas multi-reloj, el timing relativo de la liberación del reset entre dominios no importa.
+Cada dominio tiene su propio sincronizador de reset. Los resets pueden liberarse en cualquier orden o en diferentes momentos. La comunicación entre dominios utiliza protocolos de handshake, asegurando una sincronización segura incluso si los dominios arrancan en diferentes momentos.
 --
+
+=== Non-Coordinated Reset Removal (Part II)
+
+==== Design Implications
+- Simple and robust — no coordination circuitry needed.  
+- Works well when **cross-domain interactions** are protected  
+  by **synchronizers or handshake logic**.
+
+[.notes]
+--
+Sencillo y robusto, sin necesidad de circuitería de coordinación. Funciona bien cuando las interacciones entre dominios están protegidas por sincronizadores o lógica de handshake.
+--
+
+=== Sequenced Coordination of Reset Removal (Part I)
+
+[.text-justify]
+Some **multi-clock designs** require that resets be removed  
+in a **defined and prioritized sequence** across clock domains.
+
+==== When to Use
+- One clock domain must **start up before another**.  
+  → Example: `aclk` logic must be active before `bclk`,  
+  and `bclk` before `cclk`.
+- Typical in **dependent control/data hierarchies**  
+  or when **inter-domain dependencies** exist.
+
+[.notes]
+--
+Algunos diseños multi-reloj requieren que los resets se eliminen en una secuencia definida y priorizada entre dominios de reloj.
+Cuando un dominio debe arrancar antes que otro, como en jerarquías de control/datos dependientes o cuando existen dependencias entre dominios.
+--
+
+=== Sequenced Coordination of Reset Removal (Part II)
+
+==== Design Technique
+- Use **prioritized asynchronous reset synchronizers**:
+  - The **highest-priority synchronizer** input is tied **high**.  
+  - Each subsequent synchronizer input is driven by the  
+    **master reset output** of the higher-priority domain.
+
+[.notes]
+--
+Usad sincronizadores de reset asíncronos priorizados: la entrada del sincronizador de mayor prioridad se ata a alto. Cada sincronizador subsiguiente es impulsado por la salida de reset maestro del dominio de mayor prioridad.
+--
+
+=== 🧪 LAB — Practical Exercises
+**Multi-Clock: Per-Domain Synchronizers vs Sequenced Release**
+
+[.text-justify]
+In this lab you will explore **multi-clock reset handling strategies**.  
+You will compare two approaches:  
+(1) **Independent synchronizers** per clock domain, and  
+(2) **Sequenced reset release**, where one domain waits for another.
+
+[.text-justify]
+**🎯 Goals**
+* Implement **one reset synchronizer per clock domain** for independent release.  
+* Implement a **sequenced release** where **domain B** waits for **domain A**.  
+* Observe the timing difference and the effect on inter-domain coordination.
+
+[.text-justify]
+**👀 Observe in EPWave**
+[.small-text]
+* **Independent:** `mrstA_n` and `mrstB_n` rise at **different times**, depending on their local clocks.  
+* **Sequenced:** `mrstB_n` remains low until **`mrstA_n` is high**,  
+  then deasserts **after 2 rising edges of `clkB`**.  
+* Run **two separate testbenches** to compare both approaches.
+
+
 
 == Conclusions
 
-[.text-center]
-* Both **synchronous** and **asynchronous resets** can guarantee safe initialization
-* Biggest challenge → **asynchronous reset removal** (risk of metastability)
-* Recommended:
-  - Use **reset synchronizer logic**
-  - Ensure **synchronous removal** after async assertion
-* DFT with async resets is possible if reset is **controllable during test**
-* Distributed reset flip-flop trees help with **buffering, timing & layout**
+[.text-justify]
+Properly designed, both **synchronous** and **asynchronous** resets  
+can ensure **reliable circuit initialization**.
 
-[.text-center]
-*In short: simple little resets... aren’t!* ⚡
+Key Takeaways
+- **Asynchronous resets** are safe for assertion,  
+  but their **removal must be synchronized** to avoid metastability.  
+- Always use a **reset synchronizer** to combine the  
+  benefits of asynchronous assertion and synchronous release.  
+- **DFT** with asynchronous resets is practical,  
+  provided the reset can be controlled during test.  
+- **Distributed flip-flop trees** simplify buffering, timing,  
+  and layout issues for both reset styles.
+
+[.quote]
+____
+In conclusion, *simple little resets… aren’t!* 😄
+____
+
+
+https://www.intel.com/content/www/us/en/docs/programmable/683539/20-4/an-917-reset-design-techniques-for-architecture.html
 
 [.notes]
 --
-Cierro con tres ideas:  
-(1) Ambos estilos son válidos si gestionáis sus riesgos.  
-(2) En asíncrono, el sincronizador de 2 FFs no es opcional.  
-(3) Pensad en distribución y temporización del reset como pensáis en el reloj.
+Con un diseño adecuado, tanto resets síncronos como asíncronos pueden garantizar una inicialización fiable del circuito.
+Puntos clave:
+- Los resets asíncronos son seguros para la afirmación, pero su liberación debe sincronizarse para evitar metastabilidad. 
+- Siempre usad un sincronizador de reset para combinar los beneficios de afirmación asíncrona y liberación síncrona.
+- El DFT con resets asíncronos es práctico si el reset puede controlarse durante la prueba.
+- Los árboles distribuidos de flip-flops simplifican el buffering, timing y layout para ambos estilos de reset.
 --
 
 == References
 
-* *Asynchronous & Synchronous Reset Design Techniques – Part Deux*  
+* *Asynchronous & Synchronous Reset Design Techniques - Part Deux*  
   Clifford E. Cummings, Don Mills, Steve Golson
 
 * *DC Synopsys User Guide*
 
 * *HDL Compiler™ for SystemVerilog – User Guide*
 
-[.notes]
---
-Estas son buenas lecturas para profundizar: técnica, directivas y checks de temporización.  
-Si sólo podéis leer una sección, id a recovery/removal y a los patrones de sincronización de reset.
---
+* *AN-917: Reset Design Techniques for Architecture Flexibility*  
+  Intel Corporation
+
+* *ESNUG & SNUG Conference Proceedings*
