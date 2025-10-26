@@ -35,6 +35,7 @@ El reset parece algo sencillo, pero en la práctica es complejo.
 El diseño del reset es un tema complejo y a menudo poco enfatizado en la educación.
 Errores en el reset pueden causar fallos reales en el diseño.
 La experiencia en la industria muestra que a menudo se subestima su importancia.
+*Pregunta, ¿Qué sabéis sobre el reset?*
 --
 
 === Synchronous vs. Asynchronous Resets
@@ -70,8 +71,11 @@ A well-designed reset system ensures **functional correctness, reproducibility, 
 
 [.notes]
 --
-¿Por qué preocuparnos por los resets? Porque permiten volver a un estado conocido, lo que puede ser la diferencia entre recuperación y fallo.
-Un buen sistema de reset asegura corrección funcional, reproducibilidad y testabilidad.
+¿Por qué preocuparnos por los resets? Porque llevan el sistema a un estado conocido, lo que puede marcar la diferencia entre la recuperación y el fallo.
+Un reset de hardware inicializa cada chip a una condición estable.
+Incluso en PCs, el botón de reset es a menudo la solución más fiable cuando algo va mal.
+En ASICs, los resets aseguran que la simulación, síntesis y silicio comiencen desde un estado predecible.
+Un sistema de reset bien diseñado garantiza corrección funcional, reproducibilidad y capacidad de prueba.
 --
 
 === The Purpose of Reset in ASICs
@@ -94,10 +98,10 @@ In general:
 
 [.notes]
 --
-No todos los chips necesitan un reset externo para funcionar, pero casi todos lo agradecen para arrancar de forma determinista.
-En datapaths, si las FSMs están bien diseñadas, pueden re-sincronizarse; aún así, el resto del sistema debe quedar en estado seguro.
-Como regla, reseteamos todo; excepción: followers de pipelines críticos para frecuencia.
-Además del estilo, hay que diseñar el árbol de distribución, verificar recovery/removal, contemplar DFT y pensar en dominios de reloj múltiples.
+En ASICs, el reset tiene como objetivo principal forzar el diseño a un estado conocido para la simulación y el arranque fiable.
+Algunos ASICs pueden auto-sincronizarse sin resets, pero la mayoría requiere al menos un reset al encender para asegurar que toda la lógica arranca correctamente.
+Incluso los estados no utilizados en las FSM deben apuntar a una ruta de inicialización segura.
+En general, cada flip-flop debe ser reseteable, aunque no siempre se use; las tuberías de alta velocidad pueden omitir resets para cumplir con el timing; los diseñadores deben planificar cuidadosamente los árboles de reset, el buffering y la verificación.
 --
 
 ////
@@ -114,6 +118,14 @@ Mixing **resettable** and **non-resettable** (follower) flops in the same block 
 - A *follower flip-flop* is a simple data shift register with no reset.
 - When both are coded together, the reset signal may be **interpreted as a data enable** for the follower stage.
 - This results in **extra combinational logic**, as it is shown.
+
+[.notes]
+--
+Cada bloque procedural de Verilog debe modelar solo un tipo de flip-flop.
+Mezclar flops reseteables y no reseteables en el mismo bloque conduce a lógica no deseada.
+Un follower flip-flop es un registro de desplazamiento simple sin reset.
+Cuando ambos se codifican juntos, la señal de reset puede interpretarse como una habilitación de datos para la etapa follower, resultando en lógica combinacional extra.
+--
 
 === Bad Flip-Flop Coding Style (Part II)
 
@@ -147,6 +159,11 @@ Bad Verilog coding style: mixing resettable and follower flip-flops.
 
 https://www.intel.com/content/www/us/en/docs/programmable/683539/20-4/coding-synchronous-reset-with-follower.html
 
+[.notes]
+--
+Mal estilo de codificación en Verilog: mezclar flip-flops reseteables y follower.
+--
+
 === Correct Flip-Flop Coding Style
 
 [.text-justify]
@@ -163,28 +180,29 @@ To avoid unintended logic, model **each flip-flop type** in its **own procedural
 [source,verilog]
 ----
 module goodFFstyle (
-  input  logic clk, 
-  input  logic rst_n, 
+  input  logic clk, rst_n, 
   input  logic d,
   output logic q2
 );
   logic q1;
-
-  // Resettable flip-flop
   always_ff @(posedge clk)
-    if (!rst_n)
-      q1 <= 1'b0;
-    else
-      q1 <= d;
+    if (!rst_n) q1 <= 1'b0;
+    else q1 <= d;
 
-  // Follower flip-flop
-  always_ff @(posedge clk)
-    q2 <= q1;
+  always_ff @(posedge clk) q2 <= q1;
 endmodule
 ----
 | 
 image::good_ff_style.svg[width=90%]
 |===
+
+[.notes]
+--
+Para evitar lógica no deseada, modelad cada tipo de flip-flop en su propio bloque procedural.
+Separad flops reseteables y no reseteables.
+Este estilo produce resultados de síntesis limpios.
+Si se usaran resets asíncronos, ambos estilos de codificación sintetizarían idénticamente.
+--
 
 === Flip-Flop Inference Style
 
@@ -213,6 +231,7 @@ Agrupad flops relacionados en un mismo bloque `always_ff` para mantener consiste
 Usad múltiples bloques sólo para grupos funcionales grandes y separados.
 Esto facilita la simulación, síntesis y mantenimiento del RTL.
 --
+
 
 ////
   Flip-Flop Reset Styles
@@ -371,9 +390,10 @@ and simplify **timing analysis** and **verification**.
 
 [.notes]
 --
-Los resets síncronos mantienen el diseño totalmente síncrono y simplifican análisis y verificación.
-Ventajas técnicas: posible reducción de área en FFs, timing predecible, filtrado de glitches, adecuados para resets internos y permiten pipelining en el árbol de reset.
+Los resets síncronos mantienen el diseño totalmente síncrono y simplifican el análisis de timing y la verificación.
+Ventajas técnicas: pueden reducir el área del flip-flop (celdas más pequeñas si el reset se fusiona con la lógica de entrada D), aunque el ahorro total suele ser menor; el reset ocurre solo en flancos de reloj, asegurando un timing predecible; el reloj actúa como filtro de glitches para el reset; adecuado cuando los resets se generan internamente, filtrando glitches en la lógica; se pueden usar etapas de pipeline en el árbol de buffers de reset para cumplir con el timing del reloj.
 --
+
 
 === Advantages of Synchronous Resets (Part II)
 
@@ -390,9 +410,9 @@ but provide little benefit in area or simulation performance.
 
 [.notes]
 --
-Los resets síncronos son recomendados por el RMM para facilitar el uso con simuladores basados en ciclos.
-En ASICs modernos, el ahorro de área es insignificante y con un buen testbench la diferencia de velocidad en sim es mínima.
---  
+Consideraciones prácticas: recomendado por el RMM para facilitar el uso con simuladores basados en ciclos; en ASICs modernos, los ahorros de área son insignificantes; con un diseño adecuado del testbench, las diferencias de velocidad de simulación son mínimas.
+Resumen: los resets síncronos mejoran la determinación y el control del timing, pero ofrecen pocos beneficios en área o rendimiento de simulación.
+--
 
 
 === Disadvantages of Synchronous Resets (Part I)
@@ -590,9 +610,10 @@ without impacting the data path timing.
 
 [.notes]
 --
-Los resets asíncronos ofrecen una forma directa de inicializar la lógica sin afectar el timing del datapath.
-Ventajas técnicas: el reset se maneja fuera del datapath, sin añadir retardo o lógica en `D`; ideal para diseños de alto rendimiento. Permite resetear independientemente del reloj, útil si el reloj está apagado.
+Los resets asíncronos proporcionan una forma limpia y directa de inicializar la lógica, sin impactar el timing de la ruta de datos.
+Ventajas técnicas: la lógica de reset se maneja fuera de la ruta de datos, sin retrasos adicionales en la entrada D; ideal para diseños de alto rendimiento con márgenes de timing ajustados; se garantiza que no se agregará lógica de reset a la red combinacional de datos; el circuito puede resetearse independientemente del reloj, permitiendo la inicialización incluso cuando el reloj está apagado o detenido.
 --
+
 
 === Advantages of Asynchronous Resets (Part II)
 
@@ -610,7 +631,8 @@ and provide flexibility for clock-independent initialization.
 
 [.notes]
 --
-Beneficios prácticos: si la librería soporta FFs con pines de reset asíncrono, las herramientas de síntesis mapearán automáticamente a las celdas correctas, sin necesidad de atributos o mapeos manuales. Comportamiento limpio durante power-up y resets manuales.
+Beneficios prácticos: si la librería del proveedor soporta FFs con pines de reset asíncrono, las herramientas de síntesis mapearán automáticamente a las celdas correctas; típicamente no se necesitan atributos de síntesis o mapeo manual; comportamiento limpio durante el power-up y resets manuales.
+Resumen: los resets asíncronos aíslan el reset de las rutas de timing de datos y proporcionan flexibilidad para la inicialización independiente del reloj.
 --
 
 === Example: Loadable counter with asynchronous reset
@@ -939,10 +961,8 @@ image::rst_tree.svg[width=50%]
 
 [.notes]
 --
-El árbol de reset no exige skew tan ajustado como el de reloj, pero sí llegar a tiempo para cumplir recovery.  
-Comparad rutas de reloj y reset y evitad violaciones de setup/hold en destinos.
+El árbol de distribución de reset necesita casi tanto cuidado como el árbol de reloj. Típicamente, hay tantas cargas de reset como cargas de reloj. La diferencia clave es que el skew del reloj debe controlarse estrictamente, mientras que el skew del reset es menos crítico, pero aún debe cumplir el tiempo de recuperación. Consejo de diseño: siempre analizad el timing entre reloj y reset; el reset no debe violar setup/hold en los flip-flops. Ignorar el diseño del árbol de reset puede llevar a comportamientos impredecibles.
 --
-
 
 === Synchronous Reset Distribution Technique (Part I)
 
@@ -961,9 +981,8 @@ Key Idea:
 
 [.notes]
 --
-Para resets síncronos, una técnica práctica es construir un árbol de reset distribuido con flip-flops embebidos en cada nivel de módulo.
-Cada módulo registra su señal de reset entrante: la versión registrada impulsa la lógica interna y también impulsa la entrada de reset de cualquier submódulo.
-Así, puede tomar varios ciclos de reloj para que todos los flip-flops en el diseño sean reseteados.
+Para resets síncronos, una técnica práctica es construir un árbol de reset distribuido con flip-flops incrustados en cada nivel del módulo.
+La idea clave: cada módulo registra su señal de reset entrante; la versión registrada impulsa la lógica interna y también la entrada de reset de cualquier submódulo. Por lo tanto, puede tomar varios ciclos de reloj para que todos los flip-flops en el diseño sean reseteados.
 --
 
 === Synchronous Reset Distribution Technique (Part I)
@@ -1278,8 +1297,6 @@ In conclusion, *simple little resets… aren’t!* 😄
 ____
 
 
-https://www.intel.com/content/www/us/en/docs/programmable/683539/20-4/an-917-reset-design-techniques-for-architecture.html
-
 [.notes]
 --
 Con un diseño adecuado, tanto resets síncronos como asíncronos pueden garantizar una inicialización fiable del circuito.
@@ -1303,3 +1320,9 @@ Puntos clave:
   Intel Corporation
 
 * *ESNUG & SNUG Conference Proceedings*
+
+* https://www.intel.com/content/www/us/en/docs/programmable/683082/21-3/use-global-reset-resources.html
+
+* https://www.intel.com/content/www/us/en/docs/programmable/683539/20-4/an-917-reset-design-techniques-for-architecture.html
+
+* https://docs.amd.com/r/en-US/ug949-vivado-design-methodology/Resets
