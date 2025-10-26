@@ -1,0 +1,82 @@
+= Assignment: Design a CDC Data Transfer Module
+:author: [Ivan Vera]
+:revdate: {localdate}
+:doctype: article
+:toc: left
+:toclevels: 2
+:sectnums:
+
+== 1. Objective
+
+Design and verify a synthesizable *Clock Domain Crossing (CDC)* module that safely transfers a single data word from one clock domain to another using a *valid/ready handshake* protocol.  
+You will test your design using the provided self-checking testbench (`valid_ready_tb.sv`).
+
+== 2. Learning Outcomes
+
+After completing this assignment, students should be able to:
+
+* Understand metastability and why CDC synchronization is required.
+* Implement toggle-based or handshake-based synchronization between clock domains.
+* Use Verilog registers and procedural blocks correctly for asynchronous crossings.
+* Interpret simulation waveforms to verify timing and functional correctness.
+* Use a self-checking testbench to validate a hardware design.
+
+== 3. Functional Description
+
+The CDC module (`valid_ready_tb.v`) must:
+
+* Transfer a data word `i_a_data` of parameterizable width `W`  
+  from **domain A** (`i_a_clk`) to **domain B** (`i_b_clk`).
+* Use the signals `i_a_valid` / `o_a_ready` on the source side and  
+  `o_b_valid` / `i_b_ready` on the destination side to coordinate the transfer.
+* Ensure that no data is lost or duplicated.
+* Remain robust when the two clocks have unrelated frequencies and phases.
+
+=== Interface Specification
+
+|===
+| Signal | Dir | Clock | Description
+
+| `i_a_clk` | in | A | Source clock
+| `i_a_reset_n` | in | A | Active-low reset
+| `i_a_valid` | in | A | Indicates valid data on `i_a_data`
+| `o_a_ready` | out | A | Indicates that the CDC module can accept new data
+| `i_a_data[W-1:0]` | in | A | Data input
+| `i_b_clk` | in | B | Destination clock
+| `i_b_reset_n` | in | B | Active-low reset
+| `o_b_valid` | out | B | Data available on `o_b_data`
+| `i_b_ready` | in | B | Destination is ready to accept data
+| `o_b_data[W-1:0]` | out | B | Data output
+|===
+
+== 4. Requirements
+
+1. The module must be *synthesizable* and written in verilog or systemverilog.
+2. Use a *toggle-based handshake* or another safe synchronization method to detect when new data is available across clock domains.
+3. Include a parameter `W` for the data width.
+4. The design must operate correctly when:
+   * The two clocks have different frequencies.
+   * The `ready` signal remains low for several cycles.
+5. The design must pass the provided self-checking testbench (`valid_ready_tb.v`).
+
+== 5. Verification
+
+Use the provided testbench: `valid_ready_tb.v`
+
+This testbench:
+
+* Generates two asynchronous clocks.
+* Randomizes the `i_b_ready` signal.
+* Sends a series of data words from domain A to domain B.
+* Automatically compares received values to the sent sequence.
+* Reports *TEST PASSED* or *TEST FAILED* at the end.
+
+Run the simulation on *EDA Playground* using *Quuesta* or any local simulator.
+
+== 6. Deliverables
+
+Submit the following files:
+
+. `valid_ready_cdc.v` — your CDC module implementation.
+. A short `README.txt` describing your design approach.
+. (Optional) A screenshot of your simulation waveform showing one or more successful transfers.

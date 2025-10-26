@@ -1,0 +1,56 @@
+# Taller PDK
+
+## Paso 1. Preparar el entorno base
+
+Queremos tener listo:
+
+🧩 croc (el diseño que usaremos)
+
+🧰 Docker
+
+🧬 PDK sky130A (vía open_pdks)
+
+🧠 OpenRAM (para generar la SRAM)
+
+### Clona pulp-platform/croc
+
+git clone https://github.com/pulp-platform/croc.git
+cd croc
+
+### Prepara Docker
+
+./start_linux.sh
+
+Dentro del contenedor, comprueba:
+
+yosys -V
+openroad -version
+klayout -v
+
+/fosic/designs/croc > yosys -V
+Yosys 0.54 (git sha1 db72ec3bd, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
+/fosic/designs/croc > openroad -version
+v2.0-16235-gedf00dff9
+/fosic/designs/croc > klayout -v
+KLayout 0.30.2
+
+### Clone PDKs
+
+source venv/bin/activate
+pip install --upgrade pip
+pip install ciel
+ciel --version
+ciel ls-remote --pdk-family sky130
+ciel enable --pdk-family sky130 8f2d1529c86235d726979eb9ecb7e9628108590b
+
+
+anaconda
+
+
+export SKY130_PDK='/home/ivan/master/croc/tech/OpenRAM/technology/sky130A' 
+export SRAM_LIB_DIR='/home/ivan/master/croc/tech/OpenRAM/technology/sky130_fd_bd_sram'    
+export PDK_ROOT='/home/ivan/master/croc/tech/OpenRAM/technology' 
+export OPENRAM_HOME="`pwd`/compiler" 
+export OPENRAM_TECH="`pwd`/technology" 
+export PYTHONPATH=$OPENRAM_HOME
+

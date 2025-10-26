@@ -1,3 +1,15 @@
+
+// ============================================================
+//  LAB 2: Asynchronous Reset Timing and Recovery/Removal Checks
+// ============================================================
+//
+//  Goal:
+//  ------
+//  Understand the timing requirements of asynchronous resets and
+//  how violations of *recovery* and *removal* times can cause
+//  metastability or unpredictable behavior in flip-flops.
+//
+
 `timescale 1ns/1ps
 
 // =======================================

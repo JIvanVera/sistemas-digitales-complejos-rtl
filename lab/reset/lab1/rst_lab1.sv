@@ -1,3 +1,16 @@
+// ============================================================
+//  LAB 1: Synchronous Reset and Reset Pulse Stretching
+// ============================================================
+//
+//  Goal:
+//  ------
+//  Understand the behavior of a synchronous reset signal that
+//  may be too short to be detected by sequential logic, and
+//  learn how to extend ("stretch") a short asynchronous reset
+//  pulse so that it remains active for a guaranteed number of
+//  clock cycles.
+//
+
 `timescale 1ns/1ps
 
 // =======================
@@ -28,17 +41,7 @@ module rst_pulse_stretcher #(
   input  logic rst_n_in,     // short pulse (active-low)
   output logic rst_n_out     // active-low, guaranteed >= N cycles
 );
-  /*
-  logic [N-1:0] rst_n_stage;
-  always_ff @(posedge clk or negedge rst_n_in) begin
-    if (!rst_n_in) 
-      rst_n_stage <= 3'b000;
-    else 
-      rst_n_stage <= {rst_n_stage[1:0], 1'b1};
-  end
-      
-  assign rst_n_out = rst_n_stage[2];
-  */
+  assign rst_n_out = rst_n_in;
 endmodule
 
 // ==================

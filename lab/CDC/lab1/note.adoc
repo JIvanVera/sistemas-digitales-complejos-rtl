@@ -1,4 +1,21 @@
-= Lab 1 — Implementing a 2FF synchronizer
-* Goal: practice writing synthesizable SystemVerilog code for a 2-FF synchronizer 
-* Tool: **EDAPlayground** (SystemVerilog + Questa/Verilator)  
-* Concept: write a module that implements a 2-FF synchronizer
+=== 🧪 LAB — Practical Exercises
+**Implementing a 2-FF sync, an edge detect sync, and a pulse sync**
+
+[.text-justify]
+In this lab you will practice writing **synthesizable SystemVerilog** modules for different types of synchronizers.
+
+[.text-justify]
+**🎯 Goals**
+* Implement a **2-FF synchronizer** module.
+* Implement an **edge-detect synchronizer** module.
+* Implement a **pulse synchronizer** module.
+
+[.text-justify]
+**🧰 Tools**
+[.small-text]
+* Use **EDAPlayground** → *SystemVerilog + Questa* or *Verilator* setup.  
+* Observe how the output stabilizes a few cycles after input transitions.
+
+
+
+

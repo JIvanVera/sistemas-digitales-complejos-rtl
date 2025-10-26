@@ -38,7 +38,7 @@ module reset_sync #(
   input  logic ext_rst_n,   // active-low
   output logic sync_rst_n   // active-low
 );
-/*
+
   logic [STAGES-1:0] shreg;
 
   always_ff @(posedge clk or negedge ext_rst_n) begin
@@ -47,7 +47,7 @@ module reset_sync #(
   end
 
   assign sync_rst_n =  shreg[STAGES-1]; // goes high after STAGES clocks
-  */
+  
 endmodule
 
 

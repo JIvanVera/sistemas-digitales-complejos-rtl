@@ -480,7 +480,7 @@ En sistemas con buses triestado, el reset síncrono no puede garantizar la inici
 El reset asíncrono puede forzar el estado inicial de los triestados inmediatamente al encenderse.
 --
 
-=== 🧪 LAB — Practical Exercises
+=== 🧪 LAB 1 — Practical Exercises
 **Synchronous Reset & Pulse Stretcher**
 
 [.text-justify]
@@ -774,7 +774,7 @@ and that all flip-flops exit reset synchronously.
 El tiempo de eliminación del reset, cuando es asíncrono, puede causar que algunos flip-flops salgan del reset antes que otros debido a retrasos de propagación. Esto puede llevar a errores intermitentes al arrancar o inicialización parcial.
 --
 
-=== 🧪 LAB — Practical Exercises
+=== 🧪 LAB 2 — Practical Exercises
 **Asynchronous Reset: Deassertion Hazard**
 
 [.text-justify]
@@ -855,7 +855,7 @@ Could the **reset synchronizer** go itself into **metastable** when reset is rel
 ¿Puede el sincronizador de reset volverse metastable? La respuesta es NO. El primer flip-flop puede volverse metastable si el reset se elimina demasiado cerca del flanco ascendente del reloj, dentro de la ventana de recuperación del reset. El segundo flip-flop es inmune: cuando se libera el reset, tanto su entrada como su salida son lógicas 0, por lo que no hay diferencial que cause oscilación o inestabilidad.
 --
 
-=== 🧪 LAB — Practical Exercises
+=== 🧪 LAB 3 — Practical Exercises
 **2-FF Reset Synchronizer: Async Assert, Sync Release**
 
 [.text-justify]
@@ -1251,14 +1251,14 @@ Cuando un dominio debe arrancar antes que otro, como en jerarquías de control/d
 Usad sincronizadores de reset asíncronos priorizados: la entrada del sincronizador de mayor prioridad se ata a alto. Cada sincronizador subsiguiente es impulsado por la salida de reset maestro del dominio de mayor prioridad.
 --
 
-=== 🧪 LAB — Practical Exercises
+=== 🧪 LAB 4 — Practical Exercises
 **Multi-Clock: Per-Domain Synchronizers vs Sequenced Release**
 
 [.text-justify]
 In this lab you will explore **multi-clock reset handling strategies**.  
 You will compare two approaches:  
-(1) **Independent synchronizers** per clock domain, and  
-(2) **Sequenced reset release**, where one domain waits for another.
+(A) **Independent synchronizers** per clock domain, and  
+(B) **Sequenced reset release**, where one domain waits for another.
 
 [.text-justify]
 **🎯 Goals** 
