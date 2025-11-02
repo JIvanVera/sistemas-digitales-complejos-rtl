@@ -225,6 +225,14 @@ image::logic_2_sync.png[width=900,align=center]
 === Synchronizing signals from the sending clock domain
 image::logic_2_sync_waves.png[width=1000,align=center]
 
+[.notes]
+--
+¿Es necesario registrar las señales en el dominio de envío? Sí.
+Razonamiento incorrecto: "El receptor lo sincronizará, así que la fuente no importa" → Incorrecto.
+Las salidas combinacionales no registradas pueden hacer glitch o asentarse en el límite CDC. Esto aumenta la tasa efectiva de conmutación (ráfagas de flancos) → mayor probabilidad de muestrear mientras cambia. Resultado: más riesgo de metastabilidad en el dominio receptor.
+Regla general: registrar en el dominio de origen → luego sincronizar en el dominio de destino   
+--
+
 === Synchronizing signals from the sending clock domain
 
 * **FAQ:** “Do I need to register signals in the *sending* domain?” → **Yes**
@@ -234,13 +242,7 @@ image::logic_2_sync_waves.png[width=1000,align=center]
 * Result: **more metastability risk** in the receiving domain
 * Rule of thumb: **register in the source domain** → then synchronize in the destination domain
 
-[.notes]
---
-¿Es necesario registrar las señales en el dominio de envío? Sí.
-Razonamiento incorrecto: "El receptor lo sincronizará, así que la fuente no importa" → Incorrecto.
-Las salidas combinacionales no registradas pueden hacer glitch o asentarse en el límite CDC. Esto aumenta la tasa efectiva de conmutación (ráfagas de flancos) → mayor probabilidad de muestrear mientras cambia. Resultado: más riesgo de metastabilidad en el dominio receptor.
-Regla general: registrar en el dominio de origen → luego sincronizar en el dominio de destino   
---
+
 
 === Synchronizing into the Receiving Clock Domain
 
@@ -634,7 +636,7 @@ El pulso es autocontenido, de un ciclo de ancho y alineado de forma segura al do
 --
 
 === Synchronized pulse generator
-image::mcp_sync_pulse_gen.png[width=1000,align=center]
+image::mcp_sync_pulse_gen_2.png[width=1000,align=center]
 
 
 === MCP toggle-pulse generation
@@ -795,6 +797,8 @@ bin[0] = gray[3] ^ gray[2] ^ gray[1] ^ gray[0] ; // gray>>0
 bin[1] =  1'b0   ^ gray[3] ^ gray[2] ^ gray[1] ; // gray>>1
 bin[2] =  1'b0   ^  1'b0   ^ gray[3] ^ gray[2] ; // gray>>2
 bin[3] =  1'b0   ^  1'b0   ^  1'b0   ^ gray[3] ; // gray>>3
+
+bin = gray ^ (gray >> 1) ^ (gray >> 2) ^ (gray >> 3);
 ----
 
 [source,bash]
@@ -803,9 +807,14 @@ gray[0] = bin[0] ^ bin[1];
 gray[1] = bin[1] ^ bin[2];
 gray[2] = bin[2] ^ bin[3];
 gray[3] = bin[3] ^ 1'b0 ; // same as gray[3] = bin[3];
+
+gray = bin ^ (bin >> 1);
 ----
 
-* 🧪 lab 5: Implement gray-binary converters
+[.notes]
+--
+Los códigos Gray estándar tienen propiedades de traducción muy buenas para convertir gray a binario y viceversa.
+--
 
 == FIFO-based CDC
 

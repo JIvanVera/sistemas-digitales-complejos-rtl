@@ -51,6 +51,8 @@ module tb_lab4_sequenced;
 
   // Domain B: gated by A (B won't release until A is released)
   logic gated_rstB_n;
+  assign gated_rstB_n = ext_rst_n & mrstA_n;
+  //always_comb gated_rstB_n = ext_rst_n & mrstA_n;
 
   logic mrstB_n;
   reset_sync uB (.clk(clkB), .ext_rst_n(gated_rstB_n), .sync_rst_n(mrstB_n));

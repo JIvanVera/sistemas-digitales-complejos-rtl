@@ -1,331 +1,144 @@
 include::_common.adoc[]
 :imagesdir: ./private_imgs/sesion3
 
+
+
+
+
 == AsyncFIFO — Introduction
-
-[%step]
-* An *asynchronous FIFO* is a type of FIFO where data is *written* in one clock domain and *read* in another, with the two clock domains being asynchronous to each other.
-* It provides a *safe mechanism* to transfer data across clock domains.
-* Designing asynchronous FIFOs correctly is *non-trivial*:
-  - Many incorrect designs seem to work correctly most of the time.
-  - Even designs that work 99%+ of the time may still contain subtle CDC-related bugs.
-  - Such intermittent bugs are often *hard to reproduce* and *very costly* to detect or fix once in production.
-* Therefore, it is crucial to use *proven design techniques* when implementing asynchronous FIFOs.
-
+* Write in one clock domain, read in another.
+* Safe, high-throughput CDC for multi-bit data.
+* Hard to get right: subtle bugs can be rare but costly.
+* Use proven techniques (Gray pointers, 2-FF sync, full/empty rules).
 
 [.notes]
 --
-Un FIFO asíncrono permite transferir datos entre dos dominios de reloj diferentes de manera segura. Es fundamental diseñarlo correctamente, ya que los errores pueden ser difíciles de detectar y muy costosos. Por eso, se deben usar técnicas probadas para evitar problemas de sincronización entre relojes.
+Un FIFO asíncrono es un tipo de FIFO donde los datos se escriben en un dominio de reloj y se leen en otro, siendo ambos dominios de reloj asíncronos entre sí. Proporciona un mecanismo seguro para transferir datos entre dominios de reloj. El diseño correcto de FIFOs asíncronos no es trivial, ya que muchos diseños incorrectos parecen funcionar correctamente la mayoría del tiempo. Incluso los diseños que funcionan el 99% del tiempo pueden contener errores sutiles relacionados con CDC. Estos errores intermitentes suelen ser difíciles de reproducir y muy costosos de detectar o corregir una vez en producción. Por lo tanto, es crucial utilizar técnicas de diseño probadas al implementar FIFOs asíncronos.
+
+https://www.deepchip.com/posts/0357.html
+
 --
 
 == Passing Multiple Asynchronous Signals
+* Aligning several changing signals to one dst cycle is unreliable.
+* Use a FIFO: write under WCLK, read under RCLK.
+* Real challenge = pointers across domains + FULL/EMPTY detection.
 
-[.text-justify]
-Synchronizing multiple changing signals from one clock domain into another — ensuring they all align to the same destination clock cycle — is *highly problematic*.
-
-[.text-justify]
-To safely transfer *multi-bit data words* across asynchronous clock domains, *FIFOs* are used:
-- Data words are *written* into a FIFO buffer memory under control of the *write clock domain*.
-- Data words are *read* from the same FIFO buffer memory under control of the *read clock domain*.
-
-
-== Passing Multiple Asynchronous Signals
-
-[.text-justify]
-Although conceptually simple, the *real challenge* in FIFO design lies in:
-- Generating and managing *FIFO pointers* across two clock domains.
-- Reliably determining *FULL* and *EMPTY* status conditions.
-
-[.text-justify]
-These two aspects — pointer synchronization and status detection — are the *core difficulty* in asynchronous FIFO design.
-
-
-== Synchronous FIFO Pointers
-
-[.text-justify]
-In a *synchronous FIFO* — where both *write* and *read* operations share the same clock — the FIFO fill level can be tracked using a simple *increment/decrement counter*:
-- Increment on *write* (without read)
-- Decrement on *read* (without write)
-- Hold value if both or neither occur
-
-[.text-justify]
-- The FIFO is considered **full** when the counter reaches a predefined maximum value.  
-- It is considered **empty** when the counter value is **zero**.
-
-[.text-justify]
-However, this approach *cannot* be used for an *asynchronous FIFO*, because the counter would need to be controlled by *two independent clocks* — one for writes and one for reads.
-
-[.text-justify]
-Instead, asynchronous FIFOs determine *FULL* and *EMPTY* status by *comparing* the *write and read pointers*, each operating in its own clock domain.
+[.notes]
+--
+La sincronización de múltiples señales cambiantes de un dominio de reloj a otro, asegurando que todas se alineen con el mismo ciclo de reloj de destino, es altamente problemática. Para transferir de manera segura palabras de datos de varios bits a través de dominios de reloj asíncronos, se utilizan FIFOs: las palabras de datos se escriben en una memoria búfer FIFO bajo el control del dominio de reloj de escritura y se leen desde la misma memoria búfer FIFO bajo el control del dominio de reloj de lectura.
+--
 
 == Asynchronous FIFO Pointers (I)
+* Write pointer → next write location.
+* Read pointer → current read location.
+* After reset: both 0, FIFO empty; first write makes data immediately readable.
 
-[.text-justify]
-To understand asynchronous FIFO design, it is essential to understand how *FIFO pointers* operate.
-
-[.text-justify]
-- The *write pointer* always points to the *next location to be written*.
-- The *read pointer* always points to the *current location to be read*.
-
-[.text-justify]
-At *reset*:
-- Both pointers are set to **zero**.
-- The FIFO is **empty**, and the read pointer addresses *invalid data*.
-
-[.text-justify]
-On the first write:
-- The write pointer increments.
-- The *empty flag* is cleared.
-- The read pointer now addresses the *first valid data word*, making it immediately available at the FIFO output port.
-
-[.text-justify]
-This design ensures that the receiver can read a word in *one clock cycle* without needing an extra cycle to increment the pointer — improving efficiency.
+[.notes]
+--
+Para comprender el diseño de FIFOs asíncronos, es esencial entender cómo operan los punteros FIFO. El puntero de escritura siempre apunta a la siguiente ubicación que se escribirá, y el puntero de lectura siempre apunta a la ubicación actual que se leerá. Al reiniciar, ambos punteros se establecen en cero y el FIFO está vacío, con el puntero de lectura dirigiéndose a datos inválidos. En la primera escritura, el puntero de escritura se incrementa, se borra la bandera de vacío y el puntero de lectura ahora apunta a la primera palabra de datos válida, haciéndola inmediatamente disponible en el puerto de salida del FIFO. Este diseño asegura que el receptor pueda leer una palabra en un ciclo de reloj sin necesidad de un ciclo adicional para incrementar el puntero, mejorando la eficiencia.
+--  
 
 == Asynchronous FIFO Pointers (II)
+* Empty: read_ptr == write_ptr (all bits equal).
+* Full: same low bits, but MSB differs (extra wrap bit).
+* Depth = 2^N → pointers = N+1 bits (N for addr + 1 for wrap).
 
-[.text-justify]
-The FIFO is **empty** when both pointers (read and write) are *equal*.  
-This occurs:
-- After reset (both at zero).
-- When the read pointer catches up to the write pointer after reading the last word.
-
-[.text-justify]
-However, the FIFO is also **full** when both pointers are equal again — after the *write pointer wraps around* and catches up to the read pointer.
-
-[.text-justify]
-To distinguish between *full* and *empty*, each pointer includes an *extra bit* (MSB):
-- When the write pointer wraps, its MSB toggles.
-- The same applies to the read pointer.
-
-[.text-justify]
-Therefore:
-- **Empty** → All pointer bits (including MSB) are equal.  
-- **Full** → All bits *except* the MSB are equal, and the MSBs differ.
-
-[.text-justify]
-Using *n-bit pointers* for a FIFO with *2⁽ⁿ⁻¹⁾* memory locations provides a clean and reliable mechanism to detect full and empty conditions.
+[.notes]
+--
+El FIFO está vacío cuando ambos punteros (lectura y escritura) son iguales. Esto ocurre después del reinicio (ambos en cero) y cuando el puntero de lectura alcanza al puntero de escritura después de leer la última palabra. Sin embargo, el FIFO también está lleno cuando ambos punteros son iguales nuevamente, después de que el puntero de escritura da la vuelta y alcanza al puntero de lectura. Para distinguir entre lleno y vacío, cada puntero incluye un bit extra (MSB): cuando el puntero de escritura da la vuelta, su MSB cambia, lo mismo ocurre con el puntero de lectura. Por lo tanto, vacío significa que todos los bits del puntero (incluido el MSB) son iguales, mientras que lleno significa que todos los bits excepto el MSB son iguales y los MSBs difieren. El uso de punteros de n bits para un FIFO con 2^(n-1) ubicaciones de memoria proporciona un mecanismo limpio y confiable para detectar condiciones de lleno y vacío.
+--
 
 == Asynchronous FIFO Pointers (III)
-
 image::async_pointer.png[width=1000,align=center]
 
-== Binary FIFO Pointer Considerations
+== Binary Pointers vs Gray (Why Gray?)
+* Binary counters flip multiple bits → unsafe to sync.
+* Handshake can work but adds latency/area.
+* Gray code flips 1 bit per step → safer cross-domain sync.
 
-[.text-justify]
-Synchronizing a *binary counter* across clock domains is problematic because *multiple bits can change simultaneously*.  
-Example: `0111 → 1000` (all bits toggle at once).
+[.notes]
+--
+Sincronizar un contador binario a través de dominios de reloj es problemático porque múltiples bits pueden cambiar simultáneamente. Para transferir de manera segura dichos valores entre relojes asíncronos, se puede utilizar una sincronización basada en handshake: el dominio de origen muestrea y mantiene el contador binario en un registro, luego afirma una señal de listo al dominio de destino. Al detectar la señal de listo, el destino envía de vuelta un reconocimiento. El dominio de origen luego borra el listo y vuelve a muestrear. Esto asegura que el valor binario muestreado permanezca estable hasta que se capture de manera segura en el nuevo dominio de reloj. Aunque el puntero sincronizado puede no coincidir exactamente con el valor más reciente, no ocurrirá desbordamiento ni subdesbordamiento. Sin embargo, debido a que los contadores binarios pueden cambiar múltiples bits por transición, un enfoque más robusto y eficiente es utilizar contadores de código Gray, donde solo un bit cambia por paso, minimizando la incertidumbre de sincronización.
+--
 
-[.text-justify]
-To safely transfer such values between asynchronous clocks, a *handshake-based synchronization* can be used:
-1. The source domain samples and holds the binary counter in a register.  
-2. It asserts a **ready** signal to the destination domain.  
-3. Upon detecting the ready signal, the destination sends back an **acknowledge**.  
-4. The source domain then clears the ready and re-samples.
+== Gray Code Essentials
+* 1-bit change between adjacent codes.
+* FIFO depth should be a power of two (2^N).
+* Keep binary pointer for RAM addr, Gray pointer only for synchronization.
 
-[.text-justify]
-This ensures that the sampled binary value remains stable until it is safely captured in the new clock domain.
+[.notes]
+--
+Un código Gray tiene una distancia de código de 1 entre valores adyacentes, lo que significa que solo un bit cambia entre conteos sucesivos. Esta propiedad de transición de un solo bit hace que los códigos Gray sean ideales para punteros FIFO asíncronos, ya que evita problemas de metastabilidad que surgen cuando múltiples bits cambian simultáneamente. Las propiedades importantes de los contadores de código Gray incluyen que la secuencia de conteo debe tener una longitud que sea una potencia de 2 (por ejemplo, 2^n) y que las secuencias de código Gray con longitudes impares (por ejemplo, 23 estados) no son posibles. Aunque existen códigos Gray de longitud par que no son potencias de 2, son menos prácticos debido a la complejidad adicional en las conversiones a y desde binario. Por lo tanto, los FIFOs asíncronos basados en punteros codificados en Gray se diseñan con matrices de memoria de profundidad 2^n para alinearse con las propiedades naturales del conteo en código Gray.
+--
 
-[.text-justify]
-Even though the synchronized pointer might not exactly match the most recent value,  
-- **Overflow** will not occur — the write pointer never advances beyond the synchronized read pointer.  
-- **Underflow** will not occur — the read pointer never advances beyond the synchronized write pointer.
-
-[.text-justify]
-However, because binary counters can change multiple bits per transition, a more robust and efficient approach is to use *Gray code counters*, where **only one bit changes per step** — minimizing synchronization uncertainty.
-
-== Gray Code Counter Basics
-
-[.text-justify]
-A *Gray code* has a **code distance of 1** between adjacent values —  
-only **one bit changes** between successive counts.
-
-[.text-justify]
-This single-bit transition property makes Gray codes *ideal for asynchronous FIFO pointers*,  
-since it avoids metastability issues that arise when multiple bits change simultaneously.
-
-[.text-justify]
-Important properties of Gray code counters:
-- The count sequence must be a **power of 2** in length (e.g., 2ⁿ).  
-- Gray code sequences with **odd lengths** (e.g., 23 states) are not possible.  
-- While even-length non-power-of-2 Gray codes exist, they are *less practical* because conversions to and from binary become more complex.
-
-[.text-justify]
-Therefore, asynchronous FIFOs based on Gray-coded pointers are designed with *2ⁿ-depth memory arrays* to align with the natural properties of Gray code counting.
-
-== Gray Code Counter Considerations
-
-[.text-justify]
-In an asynchronous FIFO, the *binary-to-Gray pointer increment logic* must be conditioned to prevent invalid operations:
-- The **write pointer** increments only *if not full*.
-- The **read pointer** increments only *if not empty*.
-
-[.text-justify]
-This prevents FIFO *overflow* and *underflow* conditions.
-
-[.text-justify]
-If the *producer logic* reliably stops writing when **FIFO full** is asserted,  
-the internal full-check logic in the write pointer can be simplified or omitted.  
-However, a more robust design includes *redundant protection* inside the FIFO.
-
-[.text-justify]
-Additional design safeguards include:
-- Gating `write_enable` and `read_enable` signals during full or empty states.  
-- Adding “sticky” error flags:
-  - **ovf** → overflow attempt during full  
-  - **unf** → underflow attempt during empty  
-  These flags can only be cleared on reset.
-
-[.text-justify]
-A *safe and general-purpose FIFO design* should always include these protections,  
-even if it increases area or latency slightly — ensuring reliability and making the design safer to reuse by others.
-
-== Gray Code Counter
-
-[.text-justify]
-The asynchronous FIFO implementation discussed here uses a *dual-register Gray code counter* design.
-
-[.text-justify]
-It employs **two sets of registers**:
-1. **Binary pointer registers** – used to address the FIFO memory directly.  
-2. **Gray pointer registers** – used for *cross-domain synchronization*.
-
-[.text-justify]
-This approach eliminates the need to convert Gray-coded pointers back to binary when accessing the FIFO memory.
-
-[.text-justify]
-Key advantages:
-- The *binary pointer* can directly generate memory addresses.  
-- The *Gray pointer* is used only for safe synchronization across clock domains.  
-- Simplifies the computation of *almost-full* and *almost-empty* flags, since these calculations are easier in the binary domain.
-
-[.text-justify]
-Thus, this hybrid scheme combines *synchronization safety* (via Gray codes) with *addressing efficiency* (via binary counters).
-
-
-== Gray Code Counter
-
+== Gray Counter (Visual)
 image::gray_count.png[width=1000,align=center]
 
+== FIFO Design Lab (What you'll build)
+* Dual-clock FIFO with:
+** Binary+Gray write/read pointers.
+** 2-FF synchronizers for cross-domain pointers.
+** FULL/EMPTY generation.
+** Simple dual-port RAM model.
 
-== FIFO
+[.notes]
+--
+El diseño del FIFO asíncrono se divide en seis módulos Verilog, cada uno con una funcionalidad específica y asociación de dominio de reloj. Estos incluyen un módulo envolvente de nivel superior, un búfer de memoria FIFO, sincronizadores de punteros de lectura a escritura y de escritura a lectura, y lógica para los punteros de lectura y escritura junto con las banderas EMPTY y FULL.
+--
 
+== FIFO Architecture
 image::FIFO_1.png[width=1000,align=center]
 
-== FIFO Design Module Partitioning
+== Module Partitioning (Quick Map)
+* `fifo1` — top wrapper & wiring.
+* `fifomem` — dual-port RAM (wclk write, rclk read).
+* `sync_r2w` — sync read Gray into write domain.
+* `sync_w2r` — sync write Gray into read domain.
+* `rptr_empty` — read ptr (bin+gray) + EMPTY.
+* `wptr_full`  — write ptr (bin+gray) + FULL.
 
-[.text-justify]
-The asynchronous FIFO design is divided into *six Verilog modules*, each with specific functionality and clock domain association.
+== MCP Handshaking vs Async FIFO
 
-[.text-justify]
-• **fifo1.v** — *Top-level wrapper module*  
+[cols="20,40,40",options="header,autowidth"]
+|===
+| Aspect | MCP (req/ack) | Async FIFO
 
-• **fifomem.v** — *FIFO memory buffer*  : a *dual-port synchronous RAM*.  
+| Throughput
+| 1 word / round-trip
+| ~1 word / dst clk
 
-• **sync_r2w.v** — *Read-to-Write pointer synchronizer*  
+| Latency
+| 2–4 cycles (src+dst)
+| ~1 dst cycle after sync
 
-• **sync_w2r.v** — *Write-to-Read pointer synchronizer*  
+| Bursts / drift
+| Weak (single-word buffer)
+| Strong (depth buffers)
 
-• **rptr_empty.v** — *Read pointer and empty-flag logic*  
-  - Fully synchronous to the *read clock domain*.  
-  - Generates and manages the **EMPTY** flag.
+| Area
+| Tiny logic
+| RAM + pointers + sync
 
-• **wptr_full.v** — *Write pointer and full-flag logic*  
-  - Fully synchronous to the *write clock domain*.  
-  - Generates and manages the **FULL** flag.
+| Best for
+| Control / events / config
+| Streams / DMA / packets
+|===
 
-== Handling Full & Empty Conditions
+[.notes]
+--
+Los FIFOs asíncronos y los mecanismos de handshake MCP (solicitud/reconocimiento) son dos enfoques diferentes para la transferencia de datos entre dominios de reloj asíncronos. Los FIFOs asíncronos son ideales para flujos de datos continuos y de alto rendimiento, como transmisiones de video o audio, donde se requiere un alto ancho de banda y la capacidad de manejar ráfagas de datos. Por otro lado, los mecanismos MCP son más adecuados para transferencias de datos esporádicas o de baja velocidad, como señales de control o eventos, donde la latencia no es tan crítica y el volumen de datos es bajo. En resumen, los FIFOs asíncronos son preferibles para flujos de datos intensivos, mientras que los MCP son más adecuados para comunicaciones de control y eventos.
+--
 
-[.text-justify]
-The implementation of **FIFO full** and **FIFO empty** conditions is *design-dependent* and must be carefully partitioned between clock domains.
+== Home exercise & Further Reading
 
-[.text-justify]
-In this FIFO architecture:
+  * Implement the AsyncFIFO design with async pointer comparisons.
 
-- The **EMPTY flag** is generated in the **read clock domain**,  
-  ensuring *immediate detection* when the read pointer catches up to the write pointer  
-  (including the pointer MSBs).
+    https://www.paradigm-works.com/technical-library?term=simulation+and+synthesis+techniques+for+asynchronous+fifo+design+with+asynchronous+pointer+comparisons
 
-- The **FULL flag** is generated in the **write clock domain**,  
-  ensuring *immediate detection* when the write pointer catches up to the read pointer  
-  (except for the MSBs, which differ).
+  * Simulate the FIFO together with the FIFO built in class and compare both implementations.
 
-[.text-justify]
-This partitioning guarantees that each domain can detect its respective condition *without cross-domain latency*,  
-providing **synchronous and deterministic behavior** for both full and empty flags.
+== References
 
-== Generating the EMPTY Condition
-
-[.text-justify]
-The FIFO is **empty** when the **read pointer** equals the **synchronized write pointer**.
-
-[.text-justify]
-To detect this condition:
-- FIFO pointers are defined as *one bit wider* than required for addressing the memory.  
-- If the *MSBs* (wrap bits) of both pointers are equal → both have wrapped the same number of times.  
-- If the remaining bits of the **read pointer** equal the synchronized **write pointer** → the FIFO is **empty**.
-
-[.text-justify]
-The **Gray-coded write pointer** is synchronized into the **read clock domain** via two flip-flops  
-(`sync_w2r` module). Since Gray codes change only one bit per increment, multi-bit metastability is avoided.
-
-== Generating the FULL Condition (I)
-
-[.text-justify]
-The **FULL flag** is generated in the **write clock domain** by comparing the **write pointer** with the **synchronized read pointer**.
-
-[.text-justify]
-Before comparison, the *read pointer* must be safely synchronized into the *write domain* (via `sync_r2w`) to avoid metastability.
-
-[.text-justify]
-Unlike the EMPTY test, the FULL condition is more complex.  
-Although both pointers are one bit wider than the memory address width,  
-a simple Gray-code equality comparison is **not valid** because Gray codes are *symmetric* except for their MSBs.
-
-== Generating the FULL Condition (II)
-
-[.text-justify]
-To correctly detect FULL, three conditions must be true simultaneously:
-
-1. The **MSBs** of `wptr` and synchronized `rptr` are **not equal**  
-   → indicates the write pointer has wrapped one more time.  
-2. The **second MSBs** are **not equal**  
-   → required since MSBs are inverted relative to each other.  
-3. All **remaining bits** of both pointers are **equal**.
-
-[.text-justify]
-For efficient flag registration, the comparison is performed using the *next Gray code value* (`wgraynext`):
-
-== Pessimistic FULL Handling
-
-[.text-justify]
-This FIFO design uses a **pessimistic method** for flag removal:  
-- **FULL** and **EMPTY** are *asserted exactly on time*,  
-- but *deasserted (removed) slightly late*.
-
-[.text-justify]
-**FULL flag behavior:**
-- Generated in the *write clock domain* when the **write pointer** catches up to the *synchronized read pointer*.  
-- Detection is **accurate and immediate**.  
-- Removal is **pessimistic** — the flag stays high for up to *two additional wclk cycles*  
-  while the updated read pointer value is synchronized.
-
-[.text-justify]
-This conservative delay prevents *overflow* by ensuring the write-side logic  
-waits long enough for space to become available before resuming writes.
-
-== Pessimistic EMPTY Handling
-
-[.text-justify]
-**EMPTY flag behavior:**
-- Generated in the *read clock domain* when the **read pointer** catches up to the *synchronized write pointer*.  
-- Detection is **accurate and immediate**.  
-- Removal is **pessimistic** — the flag remains asserted for up to *two extra rclk cycles*  
-  while the updated write pointer synchronizes.
-
-[.text-justify]
-This delay prevents *underflow*, ensuring the read-side logic does not attempt to read  
-before new data has safely entered the FIFO.
-
-[.text-justify]
-Overall, this *pessimistic flag handling* trades a minor delay for **robustness** and **data integrity**,  
-ensuring safe operation across asynchronous clock domains.
+* "Simulation and Synthesis Techniques for Asynchronous FIFO Design with Asynchronous Pointer Comparisons", Paradigm Works, 2005.
+* "Simulation and Synthesis Techniques for Asynchronous FIFO Design", Paradigm Works, 2005.

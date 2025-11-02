@@ -143,6 +143,7 @@ module tb_toggle_pulse_sync_simple;
 endmodule
 
 
+
 // ==============================================
 // Modules
 // ==============================================
@@ -183,19 +184,12 @@ module pulse_sync (
 
   output logic pulse_out
 );
-  // Source toggle
-  logic toggle_src;
-  always_ff @(posedge clk_src or negedge rst_src_n) begin
-    if (!rst_src_n)     toggle_src <= 1'b0;
-    else if (pulse_in)  toggle_src <= ~toggle_src;
-  end
-
   // Sync toggle into destination domain
   logic toggle_dst;
   sync u_sync_toggle (
     .clk_dst (clk_dst),
     .rst_n   (rst_dst_n),
-    .async_in(toggle_src),
+    .async_in(pulse_in),
     .sync_out(toggle_dst)
   );
 

@@ -1,63 +1,3 @@
-// ============================================================
-//  MCP Toggle-Pulse Generation Sync
-// ============================================================
-//
-//  Objective:
-//  ------------
-//  Design and implement a module that synchronizes a one-cycle pulse
-//  and its associated data (MCP transfer) between two asynchronous
-//  clock domains, using a toggle-based synchronization technique.
-//
-//  Description:
-//  -------------
-//  When transferring a single-cycle pulse between asynchronous clocks,
-//  the pulse can be missed if the destination clock does not sample it
-//  in time. To avoid this, the source pulse is converted into a toggle
-//  signal that changes state each time a pulse occurs. This toggle is
-//  synchronized to the destination clock domain and then edge-detected
-//  to regenerate a one-cycle pulse.
-//
-//  The associated data must remain stable while the pulse crosses
-//  between domains. Therefore, the data buffer acts as a Multi-Cycle
-//  Path (MCP): its value is held constant until the destination has
-//  safely captured it.
-//
-//
-//  Modules Provided:
-//  ------------------
-//  - sync:
-//      A standard 2-flip-flop synchronizer for single-bit signals.
-//
-//  - pulse_sync:
-//      Converts a one-cycle pulse into a toggle, synchronizes it through
-//      the sync module, and generates a one-cycle pulse in the destination
-//      clock domain.
-//
-//  - tb_toggle_pulse_sync_simple:
-//      A testbench that drives random pulses and data in the source domain,
-//      and displays the corresponding synchronized pulse and data in the
-//      destination domain.
-//
-//
-//  Task:
-//  ------
-//  Complete the "toggle_pulse_sync" module.
-//
-//  In the source clock domain (src_clk):
-//    • Detect the input pulse (load_in).
-//    • Store data_in into an internal register (data_buf_src).
-//    • Send a one-cycle pulse toward the destination domain using pulse_sync.
-//
-//  In the destination clock domain (dst_clk):
-//    • Detect the synchronized pulse (load_pulse_dst).
-//    • Capture data_buf_src into data_out.
-//    • Generate a one-cycle valid_out pulse when new data is available.
-//
-//  Notes:
-//    • data_buf_src must remain stable while the pulse is being synchronized.
-//    • Both resets (src_rst_n and dst_rst_n) are asynchronous, active low.
-//    • valid_out must be exactly one destination clock cycle wide.
-
 
 // ==============================================
 // Testbench
@@ -127,9 +67,7 @@ module tb_mcp_with_feedback;
       valid_in = 1'b1;
       @(posedge src_clk);
       valid_in = 1'b0;
-
-      // Small delay between transfers
-      repeat (3) @(posedge src_clk);
+      @(posedge src_clk);
     end
 
     // Wait for last data to propagate
@@ -149,8 +87,6 @@ module tb_mcp_with_feedback;
   end
 
 endmodule
-
-
 
 
 // ==============================================
@@ -190,22 +126,15 @@ module pulse_sync (
 
   input  logic clk_dst,
   input  logic rst_dst_n,   // async, active-low
-
+  output logic q,
   output logic pulse_out
 );
-  // Source toggle
-  logic toggle_src;
-  always_ff @(posedge clk_src or negedge rst_src_n) begin
-    if (!rst_src_n)     toggle_src <= 1'b0;
-    else if (pulse_in)  toggle_src <= ~toggle_src;
-  end
-
   // Sync toggle into destination domain
   logic toggle_dst;
   sync u_sync_toggle (
     .clk_dst (clk_dst),
     .rst_n   (rst_dst_n),
-    .async_in(toggle_src),
+    .async_in(pulse_in),
     .sync_out(toggle_dst)
   );
 
@@ -215,7 +144,7 @@ module pulse_sync (
     if (!rst_dst_n) toggle_dst_d <= 1'b0;
     else            toggle_dst_d <= toggle_dst;
   end
-
+  assign q = toggle_dst;
   assign pulse_out = toggle_dst ^ toggle_dst_d;
 endmodule
 
@@ -240,41 +169,48 @@ module mcp_ack #(
   output logic              valid_out
 );
 
+  // Source domain registers
   logic [WIDTH-1:0] data_buf_src;
-  logic             busy;
-
-  wire accept_src = valid_in && !busy;
+  logic req_tog_src;
+  logic load_pulse_dst;
+  logic ready;
 
   always_ff @(posedge src_clk or negedge src_rst_n) begin
     if (!src_rst_n) begin
-      data_buf_src <= '0;
-    end else if (accept_src) begin
-      data_buf_src <= data_in;
+    	data_buf_src <= '0;
+        req_tog_src <= 1'b0;
+    end else begin
+      if (valid_in && ready_out) begin
+        data_buf_src <= data_in;
+        req_tog_src <= ~req_tog_src;
+      end
     end
   end
 
-  logic dst_pulse;
-  pulse_sync u_req_to_dst (
-    .clk_src   (src_clk),
-    .rst_src_n (src_rst_n),
-    .pulse_in  (accept_src),
-    .clk_dst   (dst_clk),
-    .rst_dst_n (dst_rst_n),
-    .pulse_out (dst_pulse)
+  pulse_sync pulse_sync_u1(
+    .clk_src(src_clk),
+    .rst_src_n(src_rst_n), 
+    .pulse_in(req_tog_src),
+
+    .clk_dst(dst_clk),
+    .rst_dst_n(dst_rst_n),
+    .pulse_out(load_pulse_dst)
   );
 
   always_ff @(posedge dst_clk or negedge dst_rst_n) begin
     if (!dst_rst_n) begin
-      data_out  <= '0;
+      data_out <= '0;
       valid_out <= 1'b0;
+    end else if (load_pulse_dst) begin
+      data_out <= data_buf_src;
+      valid_out <=1'b1;
     end else begin
-      valid_out <= dst_pulse;
-      if (dst_pulse)
-        data_out <= data_buf_src;
+      //data_out <= '0;
+      valid_out <= 1'b0;
     end
   end
 
-  // Acknowledgment pulse back to source domain and busy logic
+  // Acknowledgment pulse back to source domain and ready_out logic
 
 
 endmodule
